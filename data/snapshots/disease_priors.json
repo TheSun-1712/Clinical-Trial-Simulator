@@ -1,0 +1,26 @@
+{
+  "type2_diabetes": {
+    "name": "Type 2 Diabetes",
+    "baseline_response": 0.57,
+    "toxicity_sensitivity": 0.42,
+    "fatality_floor": 0.001,
+    "major_threshold": 0.58,
+    "fatal_threshold": 0.83
+  },
+  "hypertension": {
+    "name": "Hypertension",
+    "baseline_response": 0.62,
+    "toxicity_sensitivity": 0.36,
+    "fatality_floor": 0.0006,
+    "major_threshold": 0.55,
+    "fatal_threshold": 0.80
+  },
+  "nsclc": {
+    "name": "NSCLC",
+    "baseline_response": 0.41,
+    "toxicity_sensitivity": 0.54,
+    "fatality_floor": 0.0025,
+    "major_threshold": 0.50,
+    "fatal_threshold": 0.76
+  }
+}

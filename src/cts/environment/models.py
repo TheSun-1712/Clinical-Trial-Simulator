@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
+from typing import Dict, List
 
 
 class ActionType(str, Enum):
     RECRUIT = "recruit"
     ADJUST_DOSE = "adjust_dose"
+    UPDATE_COMPOSITION = "update_composition"
     HOLD_ENROLLMENT = "hold_enrollment"
     FILE_INTERIM_REPORT = "file_interim_report"
     IMPLEMENT_AMENDMENT = "implement_amendment"
@@ -20,10 +21,24 @@ class PatientStatus(str, Enum):
     COMPLETED = "completed"
 
 
+class DiseaseType(str, Enum):
+    TYPE2_DIABETES = "type2_diabetes"
+    HYPERTENSION = "hypertension"
+    NSCLC = "nsclc"
+
+
+class ReactionSeverity(str, Enum):
+    NONE = "none"
+    MINOR = "minor"
+    MAJOR = "major"
+    FATAL = "fatal"
+
+
 @dataclass
 class Action:
     type: ActionType
     magnitude: float = 0.0
+    composition: Dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -39,7 +54,16 @@ class TrialState:
     serious_adverse_events: int = 0
     budget_spent: float = 0.0
     dose_level: float = 1.0
+    disease: DiseaseType = DiseaseType.TYPE2_DIABETES
+    composition: Dict[str, float] = field(default_factory=lambda: {"a": 0.34, "b": 0.33, "c": 0.33})
+    virtual_population_size: int = 1_000_000
+    sample_batch_size: int = 2048
+    composition_iteration: int = 0
     efficacy_signal: float = 0.0
+    biomarker_improvement: float = 0.0
+    fatal_reactions: int = 0
+    minor_reactions: int = 0
+    major_reactions: int = 0
     compliance_incidents: int = 0
     interim_reports_filed: int = 0
     recruitment_hold: bool = False
@@ -59,6 +83,10 @@ class Observation:
     budget_spent: float
     dose_level: float
     efficacy_signal_estimate: float
+    biomarker_improvement_estimate: float
+    reaction_histogram: Dict[str, float]
+    disease: DiseaseType
+    composition: Dict[str, float]
     fda_sentiment: float
     fda_flag: str
 

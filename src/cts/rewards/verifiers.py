@@ -5,7 +5,8 @@ from cts.environment.models import Action, TrialState
 
 
 def efficacy_score(state: TrialState, action: Action, next_state: TrialState) -> float:
-    return max(0.0, min(1.0, next_state.efficacy_signal))
+    blended = 0.65 * next_state.efficacy_signal + 0.35 * next_state.biomarker_improvement
+    return max(0.0, min(1.0, blended))
 
 
 def safety_penalty(state: TrialState, action: Action, next_state: TrialState) -> float:
@@ -13,8 +14,9 @@ def safety_penalty(state: TrialState, action: Action, next_state: TrialState) ->
         return 0.0
     ae_rate = next_state.adverse_events / next_state.enrolled
     severe_rate = next_state.serious_adverse_events / next_state.enrolled
+    fatal_rate = next_state.fatal_reactions / next_state.enrolled
     reviewer_multiplier = 1.0 + max(0.0, -next_state.fda_sentiment)
-    penalty = (0.7 * ae_rate + 1.5 * severe_rate) * reviewer_multiplier
+    penalty = (0.45 * ae_rate + 1.25 * severe_rate + 2.5 * fatal_rate) * reviewer_multiplier
     return -max(0.0, min(1.0, penalty))
 
 
@@ -37,7 +39,9 @@ def cost_penalty(state: TrialState, action: Action, next_state: TrialState) -> f
 
 
 def progress_bonus(state: TrialState, action: Action, next_state: TrialState) -> float:
-    progress = (next_state.completed + 0.5 * next_state.active) / max(next_state.cohort_target, 1)
+    progression = (next_state.completed + 0.5 * next_state.active) / max(next_state.cohort_target, 1)
+    compositional_learning = min(1.0, next_state.composition_iteration / max(1.0, next_state.week + 1))
+    progress = 0.8 * progression + 0.2 * compositional_learning
     return max(0.0, min(1.0, progress))
 
 

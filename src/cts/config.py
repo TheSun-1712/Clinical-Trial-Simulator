@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from typing import Dict
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from cts.environment.models import DiseaseType
 
 
 class RewardWeights(BaseModel):
@@ -92,8 +95,60 @@ class TrialConfig(BaseModel):
         )
     )
     fda: FDAConfig = Field(default_factory=FDAConfig)
+    disease: DiseaseType = DiseaseType.TYPE2_DIABETES
+    use_live_data_api: bool = False
+    composition_bounds: Dict[str, tuple[float, float]] = Field(
+        default_factory=lambda: {
+            "a": (0.0, 1.0),
+            "b": (0.0, 1.0),
+            "c": (0.0, 1.0),
+        }
+    )
+    initial_composition: Dict[str, float] = Field(default_factory=lambda: {"a": 0.34, "b": 0.33, "c": 0.33})
+    disease_profiles: Dict[DiseaseType, dict] = Field(
+        default_factory=lambda: {
+            DiseaseType.TYPE2_DIABETES: {
+                "name": "Type 2 Diabetes",
+                "baseline_response": 0.57,
+                "toxicity_sensitivity": 0.42,
+                "fatality_floor": 0.001,
+                "major_threshold": 0.58,
+                "fatal_threshold": 0.83,
+            },
+            DiseaseType.HYPERTENSION: {
+                "name": "Hypertension",
+                "baseline_response": 0.62,
+                "toxicity_sensitivity": 0.36,
+                "fatality_floor": 0.0006,
+                "major_threshold": 0.55,
+                "fatal_threshold": 0.80,
+            },
+            DiseaseType.NSCLC: {
+                "name": "NSCLC",
+                "baseline_response": 0.41,
+                "toxicity_sensitivity": 0.54,
+                "fatality_floor": 0.0025,
+                "major_threshold": 0.50,
+                "fatal_threshold": 0.76,
+            },
+        }
+    )
     recruitment_cost_per_patient: float = Field(default=4000.0, gt=0)
     weekly_active_patient_cost: float = Field(default=350.0, gt=0)
+
+    @model_validator(mode="after")
+    def validate_composition(self) -> "TrialConfig":
+        total = sum(self.initial_composition.values())
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"Initial composition must sum to 1.0, got {total:.6f}")
+
+        for key, value in self.initial_composition.items():
+            if key not in self.composition_bounds:
+                raise ValueError(f"Composition key '{key}' missing bounds")
+            lo, hi = self.composition_bounds[key]
+            if not lo <= value <= hi:
+                raise ValueError(f"Composition key '{key}' out of bounds: {value} not in [{lo}, {hi}]")
+        return self
 
     @property
     def stage_config(self) -> StageConfig:
