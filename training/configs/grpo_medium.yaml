@@ -1,0 +1,17 @@
+model_name: Qwen/Qwen2.5-1.5B-Instruct
+learning_rate: 2.0e-5
+batch_size: 32
+gradient_accumulation_steps: 2
+max_steps: 2000
+checkpoint_every: 100
+early_stop_window: 500
+early_stop_min_improvement: 0.10
+log_backend: wandb
+backend: auto
+group_size: 8
+episodes_per_step: 8
+seed: 17
+output_checkpoint: artifacts/policy/latest.json
+checkpoints_dir: artifacts/policy/checkpoints
+trl_prompt_samples: 256
+trl_output_dir: artifacts/trl_unsloth

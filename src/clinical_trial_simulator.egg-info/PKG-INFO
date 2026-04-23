@@ -1,0 +1,116 @@
+Metadata-Version: 2.4
+Name: clinical-trial-simulator
+Version: 0.1.0
+Summary: Clinical trial RL environment with verifiable rewards
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pydantic<3,>=2.6
+Requires-Dist: fastapi<1,>=0.111
+Requires-Dist: uvicorn<1,>=0.30
+Requires-Dist: streamlit<2,>=1.35
+Requires-Dist: numpy<3,>=1.26
+Requires-Dist: pandas<3,>=2.2
+Requires-Dist: plotly<6,>=5.22
+Provides-Extra: train
+Requires-Dist: torch<2.11,>=2.2; extra == "train"
+Requires-Dist: transformers<4.53,>=4.46; extra == "train"
+Requires-Dist: trl<0.19,>=0.16; extra == "train"
+Requires-Dist: datasets<4.0,>=3.0; extra == "train"
+Requires-Dist: accelerate<1.8,>=1.4; extra == "train"
+Requires-Dist: peft<0.18,>=0.14; extra == "train"
+Requires-Dist: wandb<0.21,>=0.17; extra == "train"
+Requires-Dist: unsloth>=2026.1.0; (platform_system == "Linux" and python_version < "3.13") and extra == "train"
+Provides-Extra: test
+Requires-Dist: pytest>=8.2; extra == "test"
+
+# Clinical Trial Simulator
+
+Deterministic RL environment for a trial coordinator policy with verifiable, weighted rewards.
+
+## MVP floor
+
+- Seeded deterministic environment
+- Independent reward component logs
+- Random baseline vs heuristic vs trained policy benchmark table
+- Streamlit demo with interactive and benchmark tabs
+
+## Quickstart
+
+```bash
+python -m venv .venv
+. .venv/Scripts/activate
+pip install -e .[test]
+pytest -q
+python -m eval.run_benchmark --trained-checkpoint artifacts/policy/latest.json
+streamlit run demo/app.py
+```
+
+## Training
+
+```bash
+python training/train_grpo.py --config training/configs/grpo_medium.yaml
+```
+
+The default path runs a lightweight grouped-relative policy optimization loop and writes
+`artifacts/policy/latest.json`. This checkpoint is loaded by benchmark and demo as the trained policy.
+
+Optional GPU path:
+
+```bash
+pip install -e .[train]
+python training/train_grpo.py --backend trl-unsloth --config training/configs/grpo_medium.yaml
+```
+
+Notes:
+
+- On Windows (especially Python 3.14), install of `. [train]` uses TRL stack without Unsloth.
+- Strict `trl-unsloth` backend is intended for Linux GPU environments.
+- For local Windows execution, use `--backend lightweight` or `--allow-fallback`.
+
+Strict mode is default for trl-unsloth backend. If dependencies are missing and you still
+want local execution, add --allow-fallback.
+
+```bash
+python training/train_grpo.py --backend trl-unsloth --allow-fallback --config training/configs/grpo_medium.yaml --max-steps 100
+```
+
+## End-to-end pipeline
+
+```bash
+python scripts/run_pipeline.py --train --episodes 50 --checkpoint artifacts/policy/latest.json
+```
+
+PowerShell helper:
+
+```powershell
+./run.ps1 -Train -Episodes 50 -Checkpoint artifacts/policy/latest.json
+```
+
+## API and OpenEnv integration
+
+```bash
+uvicorn server.openenv_api:app --reload
+```
+
+OpenEnv endpoints:
+
+- `GET /openenv/metadata`
+- `POST /openenv/reset`
+- `POST /openenv/step`
+
+Client smoke example:
+
+```bash
+python server/openenv_client_example.py
+```
+
+## Spaces deployment
+
+Build from Docker:
+
+```bash
+docker build -f docker/Dockerfile.openenv -t clinical-trial-openenv .
+docker run -p 8000:8000 clinical-trial-openenv
+```
+
+Space descriptor for Docker runtime is provided at `server/openenv.space.yaml`.

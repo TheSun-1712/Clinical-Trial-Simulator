@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clinical-trial-simulator"
+version = "0.1.0"
+description = "Clinical trial RL environment with verifiable rewards"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pydantic>=2.6,<3",
+  "fastapi>=0.111,<1",
+  "uvicorn>=0.30,<1",
+  "streamlit>=1.35,<2",
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<3",
+  "plotly>=5.22,<6",
+]
+
+[project.optional-dependencies]
+train = [
+  "torch>=2.2,<2.11",
+  "transformers>=4.46,<4.53",
+  "trl>=0.16,<0.19",
+  "datasets>=3.0,<4.0",
+  "accelerate>=1.4,<1.8",
+  "peft>=0.14,<0.18",
+  "wandb>=0.17,<0.21",
+  "unsloth>=2026.1.0; platform_system == 'Linux' and python_version < '3.13'",
+]
+test = [
+  "pytest>=8.2",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
