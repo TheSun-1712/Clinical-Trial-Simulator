@@ -1,0 +1,79 @@
+{
+  "reward_mean": 0.04253736696989602,
+  "valid_json_rate": 0.15,
+  "valid_action_rate": 0.975,
+  "action_distribution": {
+    "hold_enrollment": 0.025,
+    "noop": 0.95,
+    "update_composition": 0.025
+  },
+  "action_distribution_over_time": [
+    {
+      "step": 1,
+      "action_distribution": {
+        "noop": 1.0
+      }
+    },
+    {
+      "step": 2,
+      "action_distribution": {
+        "hold_enrollment": 0.0625,
+        "noop": 0.9375
+      }
+    },
+    {
+      "step": 3,
+      "action_distribution": {
+        "hold_enrollment": 0.041666666666666664,
+        "noop": 0.9583333333333334
+      }
+    },
+    {
+      "step": 4,
+      "action_distribution": {
+        "hold_enrollment": 0.03125,
+        "noop": 0.9375,
+        "update_composition": 0.03125
+      }
+    },
+    {
+      "step": 5,
+      "action_distribution": {
+        "hold_enrollment": 0.025,
+        "noop": 0.95,
+        "update_composition": 0.025
+      }
+    }
+  ],
+  "reward_mode": "env_rollout",
+  "checkpoint_path": "artifacts\\trl_fast\\final_model",
+  "gpu_info": {
+    "torch_version": "2.11.0+cu128",
+    "cuda_version": "12.8",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "gpu_vram_bytes": 8546484224,
+    "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
+    "lora": {
+      "rank": 16,
+      "alpha": 32,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj"
+      ]
+    }
+  },
+  "eval_summary": {
+    "enabled": true,
+    "episodes": 4.0,
+    "trained_total_reward": -3.7000000000000006,
+    "heuristic_total_reward": -10.659162852373733,
+    "trained_worse_than_heuristic": false
+  },
+  "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
+  "adapter_dir": "artifacts\\trl_fast\\final_adapter",
+  "manifest_path": "artifacts/policy/latest_llm.json"
+}

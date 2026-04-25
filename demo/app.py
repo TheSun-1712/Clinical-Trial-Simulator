@@ -40,7 +40,7 @@ trained_checkpoint = st.sidebar.text_input("Policy checkpoint", value="artifacts
 disease_filter = st.sidebar.multiselect("Disease filter", [d.value for d in DiseaseType], default=[d.value for d in DiseaseType])
 stage_filter = st.sidebar.multiselect("Stage filter", ["stage1", "stage2", "stage3"], default=["stage1", "stage2", "stage3"])
 policy_filter = st.sidebar.multiselect("Policy filter", ["random", "heuristic", "trained"], default=["random", "heuristic", "trained"])
-benchmark_episodes = st.sidebar.number_input("Benchmark episodes", min_value=3, max_value=100, value=12, step=1)
+benchmark_episodes = st.sidebar.number_input("Benchmark episodes", min_value=1, max_value=100, value=3, step=1)
 st.sidebar.markdown("#### Continuous Neural Training")
 training_backend = st.sidebar.selectbox("Training backend", ["trl-unsloth", "trl"], index=0)
 training_config = st.sidebar.text_input("Training config", value="training/configs/grpo_medium.yaml")
@@ -55,7 +55,7 @@ raw_total = max(1e-9, manual_a + manual_b + manual_c)
 manual_composition = {"a": manual_a / raw_total, "b": manual_b / raw_total, "c": manual_c / raw_total}
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="Running clinical trial benchmarks...")
 def load_dashboard_data(checkpoint_path: str, episodes: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = run_benchmark(episodes=episodes, trained_checkpoint=checkpoint_path, output_dir="artifacts/benchmark")
     report = load_latest_benchmark_report("artifacts/benchmark") or {}
@@ -63,14 +63,25 @@ def load_dashboard_data(checkpoint_path: str, episodes: int) -> tuple[list[dict[
     return rows_frame, report
 
 
-benchmark_rows, benchmark_report = load_dashboard_data(trained_checkpoint, int(benchmark_episodes))
+# Load existing report if available, but don't run a new one automatically on every refresh
+benchmark_report = load_latest_benchmark_report("artifacts/benchmark") or {}
+benchmark_rows = []
+if benchmark_report:
+    # Try to reconstruct rows from the report if possible, or just leave empty
+    pass
+
+# We will run the benchmark inside the Benchmark tab specifically or via a button
+if st.sidebar.button("Run/Refresh Benchmarks"):
+    benchmark_rows, benchmark_report = load_dashboard_data(trained_checkpoint, int(benchmark_episodes))
+
 benchmark_frame = pd.DataFrame(benchmark_rows)
+timeline_frame = pd.DataFrame(benchmark_report.get("timeline", []))
+
 if not benchmark_frame.empty:
     benchmark_frame = benchmark_frame[benchmark_frame["policy"].isin(policy_filter)]
     if "composite_efficiency" in benchmark_frame.columns:
         benchmark_frame = benchmark_frame.sort_values("composite_efficiency", ascending=False)
 
-timeline_frame = pd.DataFrame(benchmark_report.get("timeline", []))
 if not timeline_frame.empty:
     if "policy" in timeline_frame.columns:
         timeline_frame = timeline_frame[timeline_frame["policy"].isin(policy_filter)]
@@ -329,7 +340,7 @@ with patient_tab:
     if 'env' in locals() and hasattr(env, 'state') and env.state.patient_states:
         p_df = pd.DataFrame([
             {
-                "id": p.patient_id,
+                "id": p.profile.patient_id,
                 "status": p.status,
                 "age": p.profile.age,
                 "sex": p.profile.sex,

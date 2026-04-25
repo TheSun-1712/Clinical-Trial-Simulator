@@ -34,11 +34,19 @@ class ReactionSeverity(str, Enum):
     FATAL = "fatal"
 
 
+class ManagerGoal(str, Enum):
+    RECRUIT_PHASE = "recruit_phase"
+    SAFETY_PHASE = "safety_phase"
+    EFFICACY_PHASE = "efficacy_phase"
+    REGULATORY_PHASE = "regulatory_phase"
+
+
 @dataclass
 class Action:
     type: ActionType
     magnitude: float = 0.0
     composition: Dict[str, float] = field(default_factory=dict)
+    manager_goal: ManagerGoal = ManagerGoal.RECRUIT_PHASE
 
 
 @dataclass
@@ -55,6 +63,7 @@ class TrialState:
     budget_spent: float = 0.0
     dose_level: float = 1.0
     disease: DiseaseType = DiseaseType.TYPE2_DIABETES
+    current_goal: ManagerGoal = ManagerGoal.RECRUIT_PHASE
     composition: Dict[str, float] = field(default_factory=lambda: {"a": 0.34, "b": 0.33, "c": 0.33})
     composite_efficiency: float = 0.0
     stage_transition_count: int = 0

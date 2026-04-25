@@ -63,6 +63,10 @@ class TrialEnv:
         next_state.week += 1
 
         self._apply_action(next_state, action)
+        
+        if hasattr(action, "manager_goal") and action.manager_goal:
+            next_state.current_goal = action.manager_goal
+            
         disease_profile = self._disease_profiles.get(next_state.disease, self.config.disease_profiles[next_state.disease])
         
         # Patient-level transitions

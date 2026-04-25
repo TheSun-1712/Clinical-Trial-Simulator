@@ -142,7 +142,8 @@ def _heuristic_reward(prompt: str, completion_text: str) -> float:
         if not composition:
             reward -= 0.5
         else:
-            comp_sum = sum(composition.values())
+            # Ensure numeric sum
+            comp_sum = sum(float(v) for v in composition.values() if isinstance(v, (int, float, str)) and str(v).replace('.','',1).isdigit())
             if abs(comp_sum - 1.0) < 0.05:
                 reward += 0.4
             else:

@@ -12,10 +12,11 @@ from cts.environment.models import Action, ActionType, TrialState
 
 def _state_to_prompt(state: TrialState, agent_outputs: dict[str, Any] | None = None, evidence: list[str] | None = None) -> str:
     prompt = (
-        "You are the Chief Trial Scientist for a simulated research clinical trial. "
-        "Analyze the provided state, agent insights, and evidence to decide the next action. "
+        "You are the Chief Trial Scientist and the Gating Network for a Mixture of Experts (MoE) system. "
+        "Analyze the provided state, weigh the advice from your specialized Agent Experts (Safety, Efficacy, Regulatory), and synthesize a final action. "
         "Return JSON only with the following schema:\n"
         "{\n"
+        "  \"manager_goal\": \"recruit_phase|safety_phase|efficacy_phase|regulatory_phase\",\n"
         "  \"action_type\": \"recruit|adjust_dose|update_composition|hold_enrollment|file_interim_report|noop\",\n"
         "  \"magnitude\": float,\n"
         "  \"composition\": {\"a\": float, \"b\": float, \"c\": float},\n"
@@ -25,7 +26,7 @@ def _state_to_prompt(state: TrialState, agent_outputs: dict[str, Any] | None = N
         "  \"safety_controls\": [\"string\"]\n"
         "}\n\n"
         "IMPORTANT: This is for research simulation only. Not medical advice. No real PHI involved.\n\n"
-        f"State: week={state.week}, stage={state.stage_name}, enrolled={state.enrolled}, active={state.active}, "
+        f"State: week={state.week}, current_goal={state.current_goal}, stage={state.stage_name}, enrolled={state.enrolled}, active={state.active}, "
         f"completed={state.completed}, adverse_events={state.adverse_events}, "
         f"serious_adverse_events={state.serious_adverse_events}, budget_spent={state.budget_spent:.2f}, "
         f"dose_level={state.dose_level:.3f}, efficacy_signal={state.efficacy_signal:.3f}, "
@@ -74,7 +75,14 @@ def parse_llm_action_text(text: str) -> dict[str, Any]:
         except (ValueError, TypeError):
             # Fallback for semantic strings like "diminish", "small", etc.
             magnitude = 0.1 if str(mag_val).lower() in ["small", "diminish", "slight"] else 0.0
-        composition = candidate.get("composition", {})
+        composition_raw = candidate.get("composition", {})
+        composition = {}
+        if isinstance(composition_raw, dict):
+            for k, v in composition_raw.items():
+                try:
+                    composition[k] = float(v)
+                except (ValueError, TypeError):
+                    composition[k] = 0.0
     
     valid_action = True
     try:
@@ -83,7 +91,18 @@ def parse_llm_action_text(text: str) -> dict[str, Any]:
         action_type = ActionType.NOOP
         valid_action = False
 
+    from cts.environment.models import ManagerGoal
+    manager_goal_raw = "recruit_phase"
+    if candidate:
+        manager_goal_raw = str(candidate.get("manager_goal", "recruit_phase")).strip().lower()
+        
+    try:
+        manager_goal = ManagerGoal(manager_goal_raw)
+    except ValueError:
+        manager_goal = ManagerGoal.RECRUIT_PHASE
+
     return {
+        "manager_goal": manager_goal,
         "action_type": action_type,
         "magnitude": magnitude,
         "composition": composition,
@@ -162,6 +181,7 @@ class LLMPolicy:
             type=parsed["action_type"],
             magnitude=parsed["magnitude"],
             composition=parsed["composition"],
+            manager_goal=parsed["manager_goal"],
         )
 
 
