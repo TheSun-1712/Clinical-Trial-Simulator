@@ -68,7 +68,12 @@ def parse_llm_action_text(text: str) -> dict[str, Any]:
 
     if isinstance(candidate, dict):
         action_raw = str(candidate.get("action_type", "noop")).strip().lower()
-        magnitude = float(candidate.get("magnitude", 0.0))
+        mag_val = candidate.get("magnitude", 0.0)
+        try:
+            magnitude = float(mag_val)
+        except (ValueError, TypeError):
+            # Fallback for semantic strings like "diminish", "small", etc.
+            magnitude = 0.1 if str(mag_val).lower() in ["small", "diminish", "slight"] else 0.0
         composition = candidate.get("composition", {})
     
     valid_action = True

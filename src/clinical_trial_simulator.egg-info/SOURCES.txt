@@ -6,6 +6,7 @@ src/clinical_trial_simulator.egg-info/dependency_links.txt
 src/clinical_trial_simulator.egg-info/requires.txt
 src/clinical_trial_simulator.egg-info/top_level.txt
 src/cts/__init__.py
+src/cts/composition.py
 src/cts/config.py
 src/cts/policy.py
 src/cts/policy_llm.py
@@ -13,6 +14,7 @@ src/cts/policy_loader.py
 src/cts/agents/__init__.py
 src/cts/agents/correction_agent.py
 src/cts/agents/fda_reviewer.py
+src/cts/agents/specialized.py
 src/cts/curriculum/__init__.py
 src/cts/curriculum/scheduler.py
 src/cts/data/__init__.py
@@ -21,6 +23,15 @@ src/cts/environment/__init__.py
 src/cts/environment/event_engine.py
 src/cts/environment/models.py
 src/cts/environment/trial_env.py
+src/cts/integrations/__init__.py
+src/cts/integrations/base.py
+src/cts/integrations/clients.py
+src/cts/knowledge/__init__.py
+src/cts/knowledge/store.py
+src/cts/patient/__init__.py
+src/cts/patient/generator.py
+src/cts/patient/models.py
+src/cts/replay/buffer.py
 src/cts/rewards/__init__.py
 src/cts/rewards/anti_cheat.py
 src/cts/rewards/verifiers.py
@@ -32,5 +43,7 @@ tests/test_curriculum.py
 tests/test_env.py
 tests/test_llm_policy_loading.py
 tests/test_llm_training_rewards.py
+tests/test_patient_simulation.py
 tests/test_policy_checkpoint.py
 tests/test_rewards.py
+tests/test_training_eval_rollout.py

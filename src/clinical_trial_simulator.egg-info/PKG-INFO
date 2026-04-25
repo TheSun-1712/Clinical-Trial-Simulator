@@ -64,6 +64,25 @@ python training/train_grpo.py --backend trl --config training/configs/grpo_smoke
 python training/train_grpo.py --backend trl --config training/configs/grpo_gpu_8gb.yaml --output artifacts/policy/latest_llm.json
 ```
 
+Hugging Face GPU-oriented one-shot workflow:
+
+```bash
+python scripts/run_hf_training.py --config training/configs/grpo_gpu_8gb.yaml --output artifacts/policy/latest_llm.json --episodes 12
+```
+
+Optional manifest upload to Hub (adapter upload is handled by `training/train_grpo.py` via `upload_repo` + `HF_TOKEN`):
+
+```bash
+export HF_TOKEN=hf_xxx
+python scripts/run_hf_training.py --config training/configs/grpo_gpu_8gb.yaml --output artifacts/policy/latest_llm.json --upload-manifest-repo your-username/clinical-trial-manifests
+```
+
+Reward modes:
+
+- `reward_mode: text` uses fast text-heuristic scoring of JSON validity/action quality.
+- `reward_mode: env_rollout` reconstructs sampled simulator state metadata (seed + warmup action history) and scores the model action via real environment rollout plus validation penalties.
+- `env_rollout` generally improves alignment with simulator dynamics, but it is slower because each completion triggers additional environment steps.
+
 The default path runs a lightweight grouped-relative policy optimization loop and writes
 `artifacts/policy/latest.json`. This checkpoint is loaded by benchmark and demo as the trained policy.
 
@@ -79,6 +98,7 @@ Notes:
 - On Windows (especially Python 3.14), install of `. [train]` uses TRL stack without Unsloth.
 - Strict `trl-unsloth` backend is intended for Linux GPU environments.
 - For local Windows execution, use `--backend lightweight` or `--allow-fallback`.
+- For reproducible training metrics, see `artifacts/training/latest_metrics.json`.
 
 Strict mode is default for trl-unsloth backend. If dependencies are missing and you still
 want local execution, add --allow-fallback.
