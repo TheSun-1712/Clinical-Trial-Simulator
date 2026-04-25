@@ -56,6 +56,13 @@ class TrialState:
     dose_level: float = 1.0
     disease: DiseaseType = DiseaseType.TYPE2_DIABETES
     composition: Dict[str, float] = field(default_factory=lambda: {"a": 0.34, "b": 0.33, "c": 0.33})
+    composite_efficiency: float = 0.0
+    stage_transition_count: int = 0
+    stage_transition_log: List[dict] = field(default_factory=list)
+    phase_reward_history: List[float] = field(default_factory=list)
+    phase_hold_history: List[bool] = field(default_factory=list)
+    correction_recommendations: List[dict] = field(default_factory=list)
+    last_transition_reason: str = ""
     virtual_population_size: int = 1_000_000
     sample_batch_size: int = 2048
     composition_iteration: int = 0
@@ -70,11 +77,13 @@ class TrialState:
     fda_sentiment: float = 0.0
     fda_flag: str = "monitoring"
     adverse_event_log: List[int] = field(default_factory=list)
+    patient_states: List[Any] = field(default_factory=list)
 
 
 @dataclass
 class Observation:
     week: int
+    stage_name: str
     enrolled: int
     active: int
     completed: int
@@ -84,6 +93,9 @@ class Observation:
     dose_level: float
     efficacy_signal_estimate: float
     biomarker_improvement_estimate: float
+    composite_efficiency: float
+    stage_transition_count: int
+    recommendation_count: int
     reaction_histogram: Dict[str, float]
     disease: DiseaseType
     composition: Dict[str, float]

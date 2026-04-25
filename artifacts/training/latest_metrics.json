@@ -1,0 +1,39 @@
+{
+  "reward_mean": 0.13999999999999999,
+  "valid_json_rate": 0.0,
+  "valid_action_rate": 1.0,
+  "action_distribution": {
+    "noop": 1.0
+  },
+  "action_distribution_over_time": [
+    {
+      "step": 1,
+      "action_distribution": {
+        "noop": 1.0
+      }
+    }
+  ],
+  "reward_mode": "text",
+  "checkpoint_path": "artifacts\\trl_smoke\\final_model",
+  "gpu_info": {
+    "torch_version": "2.11.0+cu128",
+    "cuda_version": "12.8",
+    "cuda_available": true,
+    "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "gpu_vram_bytes": 8546484224,
+    "model_name": "sshleifer/tiny-gpt2",
+    "lora": {
+      "rank": 4,
+      "alpha": 8,
+      "dropout": 0.05,
+      "target_modules": [
+        "c_attn",
+        "c_proj"
+      ]
+    }
+  },
+  "eval_summary": {},
+  "model_name": "sshleifer/tiny-gpt2",
+  "adapter_dir": "artifacts\\trl_smoke\\final_adapter",
+  "manifest_path": "artifacts\\policy/latest_llm_smoke.json"
+}

@@ -2,7 +2,7 @@ Metadata-Version: 2.4
 Name: clinical-trial-simulator
 Version: 0.1.0
 Summary: Clinical trial RL environment with verifiable rewards
-Requires-Python: >=3.10
+Requires-Python: <3.13,>=3.11
 Description-Content-Type: text/markdown
 Requires-Dist: pydantic<3,>=2.6
 Requires-Dist: fastapi<1,>=0.111
@@ -12,7 +12,7 @@ Requires-Dist: numpy<3,>=1.26
 Requires-Dist: pandas<3,>=2.2
 Requires-Dist: plotly<6,>=5.22
 Provides-Extra: train
-Requires-Dist: torch<2.11,>=2.2; extra == "train"
+Requires-Dist: torch<2.12,>=2.10; extra == "train"
 Requires-Dist: transformers<4.53,>=4.46; extra == "train"
 Requires-Dist: trl<0.19,>=0.16; extra == "train"
 Requires-Dist: datasets<4.0,>=3.0; extra == "train"
@@ -37,7 +37,7 @@ Deterministic RL environment for a trial coordinator policy with verifiable, wei
 ## Quickstart
 
 ```bash
-python -m venv .venv
+py -3.11 -m venv .venv
 . .venv/Scripts/activate
 pip install -e .[test]
 pytest -q
@@ -48,7 +48,20 @@ streamlit run demo/app.py
 ## Training
 
 ```bash
+pip install -e .[train]
 python training/train_grpo.py --config training/configs/grpo_medium.yaml
+```
+
+Quick CPU smoke test:
+
+```bash
+python training/train_grpo.py --backend trl --config training/configs/grpo_smoke.yaml --output artifacts/policy/latest_llm_smoke.json
+```
+
+8GB NVIDIA GPU training:
+
+```bash
+python training/train_grpo.py --backend trl --config training/configs/grpo_gpu_8gb.yaml --output artifacts/policy/latest_llm.json
 ```
 
 The default path runs a lightweight grouped-relative policy optimization loop and writes

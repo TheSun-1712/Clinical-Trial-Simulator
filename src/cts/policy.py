@@ -43,6 +43,9 @@ def feature_vector(state: TrialState, config: TrialConfig) -> list[float]:
         min(1.0, max(0.0, state.efficacy_signal)),
         min(1.0, max(-1.0, state.fda_sentiment) + 1.0) / 2.0,
         1.0 if state.recruitment_hold else 0.0,
+        1.0 if state.stage_name == "stage1" else 0.0,
+        1.0 if state.stage_name == "stage2" else 0.0,
+        min(1.0, max(0.0, state.composite_efficiency)),
     ]
 
 
@@ -90,7 +93,7 @@ class LinearPolicy:
 
 
 def init_zero_policy() -> LinearPolicy:
-    n_features = 11
+    n_features = 14
     return LinearPolicy(weights=[[0.0 for _ in range(n_features)] for _ in ACTION_LIBRARY])
 
 
@@ -107,8 +110,12 @@ def save_policy_checkpoint(policy: LinearPolicy, path: str, metadata: dict | Non
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def load_policy_payload(path: str) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
 def load_policy_checkpoint(path: str) -> LinearPolicy:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    payload = load_policy_payload(path)
     if payload.get("policy_type") != "linear_softmax":
         raise ValueError("Unsupported checkpoint policy type")
     return LinearPolicy(weights=payload["weights"])

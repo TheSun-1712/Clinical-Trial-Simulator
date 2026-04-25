@@ -1,0 +1,13 @@
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_tmp/
+.pytest_basetemp/
+artifacts/pytest-temp/
+artifacts/benchmark-smoke*/
+artifacts/trl_smoke/
+artifacts/trl_gpu_8gb/
+artifacts/policy/latest_llm_smoke.json
+artifacts/policy/latest_llm_gpu_smoke.json

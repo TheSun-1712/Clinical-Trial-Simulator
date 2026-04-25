@@ -7,7 +7,7 @@ name = "clinical-trial-simulator"
 version = "0.1.0"
 description = "Clinical trial RL environment with verifiable rewards"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.13"
 dependencies = [
   "pydantic>=2.6,<3",
   "fastapi>=0.111,<1",
@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 train = [
-  "torch>=2.2,<2.11",
+  "torch>=2.10,<2.12",
   "transformers>=4.46,<4.53",
   "trl>=0.16,<0.19",
   "datasets>=3.0,<4.0",

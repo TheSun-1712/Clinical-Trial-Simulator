@@ -1,8 +1,8 @@
 model_name: Qwen/Qwen2.5-1.5B-Instruct
 learning_rate: 2.0e-5
-batch_size: 32
+batch_size: 4
 gradient_accumulation_steps: 2
-max_steps: 2000
+max_steps: 100
 checkpoint_every: 100
 early_stop_window: 500
 early_stop_min_improvement: 0.10
@@ -15,3 +15,10 @@ output_checkpoint: artifacts/policy/latest.json
 checkpoints_dir: artifacts/policy/checkpoints
 trl_prompt_samples: 256
 trl_output_dir: artifacts/trl_unsloth
+reward_mode: env_rollout
+reward_rollout_steps: 3
+eval_after_train: true
+eval_episodes: 12
+metrics_output_path: artifacts/training/latest_metrics.json
+upload_repo: cts-simulation-policy
+upload_private: true

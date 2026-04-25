@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import copy
 import random
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from cts.config import EventRates
 from cts.environment.models import ReactionSeverity, TrialState
+from cts.patient.models import PatientTrialState
 
 
 @dataclass
@@ -21,8 +24,56 @@ class EventEngine:
     def __init__(self, rates: EventRates):
         self.rates = rates
 
+    def transition_patient(self, state: PatientTrialState, global_composition: dict[str, float]) -> PatientTrialState:
+        # Update composition exposure
+        state.composition_exposure = dict(global_composition)
+        
+        # Calculate efficacy probability
+        eff_prob = 0.4 * state.composition_exposure.get("a", 0.0) + 0.2 * state.composition_exposure.get("b", 0.0)
+        if state.profile.disease_stage == "severe":
+            eff_prob *= 0.8
+        eff_prob += 0.1 * state.profile.biomarkers.get("marker_a", 0.5)
+        
+        state.efficacy_response = min(1.0, eff_prob + random.uniform(-0.05, 0.05))
+        
+        # Calculate toxicity probability
+        tox_prob = 0.5 * state.composition_exposure.get("c", 0.0) + 0.1 * state.composition_exposure.get("b", 0.0)
+        if state.profile.age > 65:
+            tox_prob *= 1.2
+        if state.profile.genotype.get("cyp2d6") == "poor":
+            tox_prob *= 1.5
+            
+        if random.random() < tox_prob:
+            grade = 1
+            if tox_prob > 0.4 and random.random() < 0.2:
+                grade = 3
+            elif tox_prob > 0.6 and random.random() < 0.1:
+                grade = 4
+                
+            ae = {
+                "term": "Neutropenia" if random.random() < 0.5 else "Nausea",
+                "grade": grade,
+                "is_serious": grade >= 3,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            state.adverse_events.append(ae)
+            
+        # Calculate dropout risk
+        base_dropout = 0.05
+        if state.adverse_events and any(ae["grade"] >= 3 for ae in state.adverse_events):
+            base_dropout += 0.3
+        if state.efficacy_response < 0.1:
+            base_dropout += 0.1
+            
+        state.dropout_risk = min(1.0, base_dropout)
+        if random.random() < state.dropout_risk:
+            state.status = "dropped_out"
+            
+        state.lab_history.append({"alt": 25.0 + random.uniform(-5, 5)})
+        return state
+
     def step(self, state: TrialState, rng: random.Random, disease_profile: dict | None = None) -> TrialState:
-        next_state = TrialState(**state.__dict__)
+        next_state = copy.deepcopy(state)
         profile = disease_profile or {
             "baseline_response": 0.55,
             "toxicity_sensitivity": 0.4,
@@ -30,6 +81,10 @@ class EventEngine:
             "major_threshold": 0.58,
             "fatal_threshold": 0.82,
         }
+        phase_profile = self._phase_profile(next_state.stage_name)
+        phase_response_boost = phase_profile["response_boost"]
+        phase_toxicity_scale = phase_profile["toxicity_scale"]
+        phase_dropout_scale = phase_profile["dropout_scale"]
 
         if next_state.active > 0:
             dropped = 0
@@ -41,7 +96,14 @@ class EventEngine:
             improvement_sum = 0.0
             for _ in range(min(next_state.active, next_state.sample_batch_size)):
                 latent = self._sample_patient_latent(rng)
-                efficacy, toxicity = self._simulate_response(latent, next_state.composition, profile, rng)
+                efficacy, toxicity = self._simulate_response(
+                    latent,
+                    next_state.composition,
+                    profile,
+                    rng,
+                    phase_response_boost=phase_response_boost,
+                    phase_toxicity_scale=phase_toxicity_scale,
+                )
                 reaction = self._classify_reaction(toxicity, profile)
 
                 if reaction != ReactionSeverity.NONE:
@@ -57,7 +119,7 @@ class EventEngine:
 
                 improvement_sum += efficacy
 
-                if rng.random() < self.rates.dropout_prob:
+                if rng.random() < min(1.0, self.rates.dropout_prob * phase_dropout_scale):
                     dropped += 1
 
             next_state.active = max(0, next_state.active - dropped)
@@ -81,6 +143,13 @@ class EventEngine:
 
         return next_state
 
+    def _phase_profile(self, stage_name: str) -> dict[str, float]:
+        if stage_name == "stage1":
+            return {"response_boost": 0.95, "toxicity_scale": 1.08, "dropout_scale": 1.05}
+        if stage_name == "stage2":
+            return {"response_boost": 1.0, "toxicity_scale": 1.0, "dropout_scale": 1.0}
+        return {"response_boost": 1.05, "toxicity_scale": 0.92, "dropout_scale": 0.94}
+
     def _sample_patient_latent(self, rng: random.Random) -> PatientLatent:
         return PatientLatent(
             metabolism=min(1.0, max(0.0, rng.gauss(0.55, 0.2))),
@@ -95,6 +164,8 @@ class EventEngine:
         composition: dict[str, float],
         disease_profile: dict,
         rng: random.Random,
+        phase_response_boost: float = 1.0,
+        phase_toxicity_scale: float = 1.0,
     ) -> tuple[float, float]:
         c_a = composition.get("a", 0.0)
         c_b = composition.get("b", 0.0)
@@ -109,7 +180,7 @@ class EventEngine:
             + 0.18 * c_b * latent.metabolism
             - 0.10 * c_c * latent.immune_reactivity
             + rng.gauss(0.0, 0.03)
-        )
+        ) * phase_response_boost
         toxicity = (
             tox_sensitivity
             + 0.35 * c_c * (0.6 + latent.immune_reactivity)
@@ -117,7 +188,7 @@ class EventEngine:
             + 0.12 * latent.comorbidity
             - 0.08 * c_a
             + rng.gauss(0.0, 0.035)
-        )
+        ) * phase_toxicity_scale
 
         return (max(0.0, min(1.0, efficacy)), max(0.0, min(1.0, toxicity)))
 

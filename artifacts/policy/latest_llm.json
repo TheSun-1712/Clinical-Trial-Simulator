@@ -1,0 +1,57 @@
+{
+  "format_version": 1,
+  "policy_type": "llm_causal",
+  "model_dir": "artifacts\\trl_gpu_8gb\\final_model",
+  "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
+  "adapter_dir": "artifacts\\trl_gpu_8gb\\final_adapter",
+  "metadata": {
+    "algorithm": "trl_grpo_causal_lm",
+    "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
+    "max_steps": 50,
+    "max_new_tokens": 64,
+    "lora_rank": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "lora_target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj"
+    ],
+    "reward_mean": 0.19247499999999856,
+    "valid_json_rate": 0.0025,
+    "valid_action_rate": 0.99875,
+    "action_distribution": {
+      "adjust_dose": 0.0075,
+      "file_interim_report": 0.00125,
+      "hold_enrollment": 0.115,
+      "noop": 0.86,
+      "recruit": 0.01625
+    },
+    "checkpoint_path": "artifacts\\trl_gpu_8gb\\final_model",
+    "pushed_repo": "",
+    "resume_from_checkpoint": null,
+    "reward_mode": "text",
+    "reward_rollout_steps": 1,
+    "eval_summary": {},
+    "gpu_info": {
+      "torch_version": "2.11.0+cu128",
+      "cuda_version": "12.8",
+      "cuda_available": true,
+      "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+      "gpu_vram_bytes": 8546484224,
+      "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
+      "lora": {
+        "rank": 16,
+        "alpha": 32,
+        "dropout": 0.05,
+        "target_modules": [
+          "q_proj",
+          "k_proj",
+          "v_proj",
+          "o_proj"
+        ]
+      }
+    }
+  }
+}

@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import copy
 import random
 from dataclasses import asdict
 from typing import Optional
 
+from cts.agents.correction_agent import recommend_corrections
 from cts.agents.fda_reviewer import evaluate_fda_reviewer
 from cts.config import TrialConfig
 from cts.data.priors import load_live_priors_or_snapshot
 from cts.environment.event_engine import EventEngine
 from cts.environment.models import Action, ActionType, Observation, StepResult, TrialState
+from cts.curriculum.scheduler import CurriculumTracker
 from cts.rewards.anti_cheat import validate_transition
+from cts.rewards.verifiers import reward_breakdown
+from cts.patient.generator import generate_synthetic_patients
 
 
 class TrialEnv:
@@ -20,6 +25,7 @@ class TrialEnv:
         self._rng = random.Random(config.seed)
         self._event_engine = EventEngine(config.stage_config.event_rates)
         self._disease_profiles = load_live_priors_or_snapshot(use_live=config.use_live_data_api)
+        self._curriculum = CurriculumTracker(current_stage=config.stage_config.name)
         self._state: Optional[TrialState] = None
 
     @property
@@ -34,24 +40,54 @@ class TrialEnv:
         self._rng = random.Random(seed)
         stage = self.config.stage_config
         self._event_engine = EventEngine(stage.event_rates)
+        self._curriculum = CurriculumTracker(current_stage=stage.name)
         self._state = TrialState(
             week=0,
             stage_name=stage.name,
             cohort_target=stage.cohort_size,
             disease=self.config.disease,
             composition=dict(self.config.initial_composition),
+            composite_efficiency=0.0,
+            stage_transition_count=0,
+            stage_transition_log=[],
+            phase_reward_history=[],
+            phase_hold_history=[],
+            correction_recommendations=[],
         )
         observation = self._to_observation(self._state)
-        return StepResult(observation=observation, state=self._state, terminated=False, truncated=False, info={"seed": seed})
+        return StepResult(observation=observation, state=self._state, terminated=False, truncated=False, info={"seed": seed, "stage": stage.name})
 
     def step(self, action: Action) -> StepResult:
         state = self.state
-        next_state = TrialState(**state.__dict__)
+        next_state = copy.deepcopy(state)
         next_state.week += 1
 
         self._apply_action(next_state, action)
         disease_profile = self._disease_profiles.get(next_state.disease, self.config.disease_profiles[next_state.disease])
-        next_state = self._event_engine.step(next_state, self._rng, disease_profile=disease_profile)
+        
+        # Patient-level transitions
+        updated_patients = []
+        for p in next_state.patient_states:
+            if p.status == "active":
+                updated = self._event_engine.transition_patient(p, next_state.composition)
+                updated_patients.append(updated)
+            else:
+                updated_patients.append(p)
+        next_state.patient_states = updated_patients
+        
+        # Aggregate metrics from patients
+        next_state.active = sum(1 for p in next_state.patient_states if p.status == "active")
+        next_state.dropped_out = sum(1 for p in next_state.patient_states if p.status == "dropped_out")
+        next_state.completed = sum(1 for p in next_state.patient_states if p.status == "completed")
+        next_state.adverse_events = sum(len(p.adverse_events) for p in next_state.patient_states)
+        next_state.serious_adverse_events = sum(1 for p in next_state.patient_states for ae in p.adverse_events if ae.get("is_serious"))
+        
+        # Simplified efficacy/biomarker update from patients
+        active_eff = [p.efficacy_response for p in next_state.patient_states if p.status == "active"]
+        if active_eff:
+            next_state.biomarker_improvement = sum(active_eff) / len(active_eff)
+            next_state.efficacy_signal = min(1.0, next_state.efficacy_signal + (next_state.biomarker_improvement * 0.05))
+
         next_state.budget_spent += next_state.active * self.config.weekly_active_patient_cost
 
         fda_sentiment, fda_flag = evaluate_fda_reviewer(next_state, self.config.fda)
@@ -60,11 +96,48 @@ class TrialEnv:
         if fda_flag == "hold":
             next_state.recruitment_hold = True
 
+        rewards = reward_breakdown(self.config.reward_weights, state, action, next_state)
+        next_state.composite_efficiency = rewards["composite_efficiency"]
+
+        had_hold = fda_flag == "hold" or next_state.recruitment_hold
+        self._curriculum.update(rewards["total"], had_hold)
+        stage_transition = None
+        if self._curriculum.can_promote(self.config):
+            promoted = self._curriculum.promote()
+            if promoted:
+                promoted_stage = getattr(self.config, self._curriculum.current_stage)
+                stage_transition = {
+                    "from_stage": state.stage_name,
+                    "to_stage": promoted_stage.name,
+                    "week": next_state.week,
+                    "window_mean_reward": sum(self._curriculum.reward_history[-promoted_stage.promotion_window :])
+                    / min(len(self._curriculum.reward_history), promoted_stage.promotion_window),
+                    "had_hold": had_hold,
+                }
+                next_state.stage_name = promoted_stage.name
+                next_state.cohort_target = promoted_stage.cohort_size
+                next_state.stage_transition_count += 1
+                next_state.last_transition_reason = "curriculum_threshold"
+                next_state.stage_transition_log = [*next_state.stage_transition_log, stage_transition]
+                self._event_engine = EventEngine(promoted_stage.event_rates)
+        next_state.phase_reward_history = list(self._curriculum.reward_history)
+        next_state.phase_hold_history = list(self._curriculum.safety_hold_history)
+
+        correction = recommend_corrections(state, action, next_state)
+        next_state.correction_recommendations = list(correction["recommendations"])
+
         validation = validate_transition(state, action, next_state)
         terminated = False
-        info = {"validation": asdict(validation)}
+        info = {
+            "validation": asdict(validation),
+            "reward": rewards,
+            "phase": {"stage": next_state.stage_name, "composite_efficiency": next_state.composite_efficiency},
+            "correction": correction,
+        }
+        if stage_transition is not None:
+            info["stage_transition"] = stage_transition
 
-        stage = self.config.stage_config
+        stage = self.config.stage_config if next_state.stage_name == self.config.stage_config.name else getattr(self.config, next_state.stage_name)
         if validation.terminate:
             terminated = True
         if next_state.serious_adverse_events >= stage.max_adverse_events:
@@ -87,11 +160,15 @@ class TrialEnv:
             remaining = max(0, state.cohort_target - state.enrolled)
             desired = max(0, int(round(action.magnitude)))
             base = min(remaining, desired)
-            recruited = self._event_engine.sample_recruitment(base, self._rng)
-            recruited = min(remaining, recruited)
-            state.enrolled += recruited
-            state.active += recruited
-            state.budget_spent += recruited * self.config.recruitment_cost_per_patient
+            recruited_count = self._event_engine.sample_recruitment(base, self._rng)
+            recruited_count = min(remaining, recruited_count)
+            
+            if recruited_count > 0:
+                new_patients = generate_synthetic_patients(recruited_count, seed=self._rng.randint(0, 1000000), disease=state.disease)
+                state.patient_states.extend(new_patients)
+                state.enrolled += recruited_count
+                state.active += recruited_count
+                state.budget_spent += recruited_count * self.config.recruitment_cost_per_patient
             return
 
         if action.type == ActionType.ADJUST_DOSE:
@@ -141,6 +218,7 @@ class TrialEnv:
         }
         return Observation(
             week=state.week,
+            stage_name=state.stage_name,
             enrolled=state.enrolled,
             active=state.active,
             completed=state.completed,
@@ -150,6 +228,9 @@ class TrialEnv:
             dose_level=state.dose_level,
             efficacy_signal_estimate=estimate,
             biomarker_improvement_estimate=max(0.0, min(1.0, state.biomarker_improvement + self._rng.uniform(-0.03, 0.03))),
+            composite_efficiency=state.composite_efficiency,
+            stage_transition_count=state.stage_transition_count,
+            recommendation_count=len(state.correction_recommendations),
             reaction_histogram=histogram,
             disease=state.disease,
             composition=state.composition,
