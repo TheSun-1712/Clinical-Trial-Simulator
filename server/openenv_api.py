@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import random
 
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
@@ -132,6 +133,87 @@ def select_disease(request: SelectDiseaseRequest) -> dict:
     env.config = env.config.model_copy(update={"disease": request.disease})
     result = env.reset()
     return {"session_id": request.session_id, "observation": result.observation.__dict__}
+
+
+@app.get("/simulation/patients/{session_id}")
+def get_patients(session_id: str) -> dict:
+    if session_id not in sessions:
+        return {"error": "unknown_session"}
+    env = sessions[session_id]
+    patients = []
+    for p in env.state.patient_states:
+        patients.append({
+            "id": p.profile.patient_id,
+            "status": p.status,
+            "age": p.profile.age,
+            "sex": p.profile.sex,
+            "stage": p.profile.disease_stage,
+            "efficacy": p.efficacy_response,
+            "ae_count": len(p.adverse_events),
+            "dropout_risk": p.dropout_risk
+        })
+    return {"patients": patients}
+
+
+@app.get("/simulation/evidence/{disease}")
+def get_evidence(disease: str) -> dict:
+    from cts.integrations.clients import PubMedClient, OpenFDAClient
+    pubmed = PubMedClient()
+    fda = OpenFDAClient()
+    
+    disease_map = {
+        "type2_diabetes": "Type 2 Diabetes",
+        "hypertension": "Hypertension",
+        "nsclc": "Non-Small Cell Lung Cancer"
+    }
+    term = disease_map.get(disease, disease)
+    
+    pm_results = pubmed.search_literature(disease=term, intervention="drug therapy", endpoint="safety")
+    pm_ids = pm_results.get("esearchresult", {}).get("idlist", [])[:3]
+    articles = []
+    for pmid in pm_ids:
+        if pmid == "00000000": continue
+        summary = pubmed.fetch_summary(pmid)
+        res = summary.get("result", {}).get(pmid, {})
+        articles.append({
+            "title": res.get("title", "No Title"),
+            "date": res.get("pubdate", "Unknown"),
+            "source": res.get("source", "PubMed"),
+            "id": pmid
+        })
+        
+    fda_results = fda.drug_event(drug_name=term)
+    events = []
+    for ev in fda_results.get("results", [])[:3]:
+        reactions = [r.get("reactionmeddrapt") for r in ev.get("patient", {}).get("reaction", [])]
+        events.append({
+            "reactions": reactions,
+            "seriousness": ev.get("seriousnesshospitalization") == "1"
+        })
+        
+    return {"articles": articles, "events": events}
+
+
+class PolicyActionRequest(BaseModel):
+    session_id: str
+    checkpoint_path: str = "artifacts/policy/latest.json"
+
+
+@app.post("/policy/action")
+def get_policy_action(request: PolicyActionRequest) -> dict:
+    from cts.policy_loader import checkpoint_exists, load_any_policy_checkpoint
+    if request.session_id not in sessions:
+        return {"error": "unknown_session"}
+    
+    env = sessions[request.session_id]
+    if not checkpoint_exists(request.checkpoint_path):
+        from eval.baselines import heuristic_policy_action
+        action = heuristic_policy_action(env.state)
+    else:
+        policy = load_any_policy_checkpoint(request.checkpoint_path)
+        action = policy.select_action(env.state, env.config, rng=random.Random(42))
+        
+    return {"action_type": action.type.value, "magnitude": action.magnitude}
 
 
 @app.post("/simulation/batch")

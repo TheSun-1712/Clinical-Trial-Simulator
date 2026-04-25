@@ -13,14 +13,17 @@
     "vite": "^8.0.10"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.100.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.3.0",
     "axios": "^1.15.2",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "zustand": "^5.0.12"
   }
 }
