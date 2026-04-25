@@ -10,7 +10,16 @@ from cts.agents.fda_reviewer import evaluate_fda_reviewer
 from cts.config import TrialConfig
 from cts.data.priors import load_live_priors_or_snapshot
 from cts.environment.event_engine import EventEngine
+<<<<<<< HEAD
 from cts.environment.models import Action, ActionType, Observation, StepResult, TrialState
+=======
+from cts.environment.models import (
+    Action, ActionType, Observation, PatientStatus, 
+    ProgramPhase, StepResult, TrialState, AuditEntry, ReactionSeverity
+)
+from cts.environment.patient_agent import PatientMicroAgent
+from cts.environment.protocol_engine import ProtocolEngine
+>>>>>>> 24b3193 (fix(dashboard): integrate dynamic Hindsight Replay)
 from cts.curriculum.scheduler import CurriculumTracker
 from cts.rewards.anti_cheat import validate_transition
 from cts.rewards.verifiers import reward_breakdown
