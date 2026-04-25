@@ -1,0 +1,231 @@
+{
+  "generated_at": "2026-04-25T15:55:11.813638+00:00",
+  "overall": {
+    "episodes": 1,
+    "policies": [
+      "random",
+      "heuristic",
+      "trained"
+    ]
+  },
+  "policy_rows": [
+    {
+      "policy": "random",
+      "source": "builtin",
+      "total_reward": -8.412690533198896,
+      "composite_efficiency": 0.28495075688837246,
+      "efficacy": 0.12566601127752042,
+      "safety": -0.6666666666666666,
+      "compliance": -0.6,
+      "cost": -0.6822916666666666,
+      "progress": 0.07137254901960786,
+      "correction_triggers": 26.666666666666668,
+      "stage_transitions": 0.0
+    },
+    {
+      "policy": "heuristic",
+      "source": "builtin",
+      "total_reward": -10.741135253607363,
+      "composite_efficiency": 0.24410362269099348,
+      "efficacy": 0.21318268665927212,
+      "safety": -1.0,
+      "compliance": -1.0,
+      "cost": -0.41,
+      "progress": 0.06666666666666668,
+      "correction_triggers": 30.0,
+      "stage_transitions": 0.0
+    },
+    {
+      "policy": "trained",
+      "source": "checkpoint:llm_causal:artifacts\\policy\\latest_llm.json",
+      "total_reward": -3.7000000000000006,
+      "composite_efficiency": 0.37142857142857144,
+      "efficacy": 0.0,
+      "safety": 0.0,
+      "compliance": 0.5,
+      "cost": -0.20000000000000004,
+      "progress": 0.0,
+      "correction_triggers": 32.0,
+      "stage_transitions": 0.0
+    }
+  ],
+  "disease_metrics": {
+    "random": {
+      "type2_diabetes": {
+        "total_reward": -9.554963496502994,
+        "composite_efficiency": 0.2439535924487766,
+        "efficacy": 0.19081852949437744,
+        "safety": -1.0,
+        "compliance": -1.0,
+        "cost": -0.846875,
+        "progress": 0.11529411764705885,
+        "correction_triggers": 31.0,
+        "stage_transitions": 0.0
+      },
+      "hypertension": {
+        "total_reward": -4.033482112658584,
+        "composite_efficiency": 0.35336134453781515,
+        "efficacy": 0.0,
+        "safety": 0.0,
+        "compliance": 0.19999999999999996,
+        "cost": -0.2,
+        "progress": 0.023529411764705882,
+        "correction_triggers": 19.0,
+        "stage_transitions": 0.0
+      },
+      "nsclc": {
+        "total_reward": -11.64962599043511,
+        "composite_efficiency": 0.2575373336785256,
+        "efficacy": 0.1861795043381838,
+        "safety": -1.0,
+        "compliance": -1.0,
+        "cost": -1.0,
+        "progress": 0.07529411764705884,
+        "correction_triggers": 30.0,
+        "stage_transitions": 0.0
+      }
+    },
+    "heuristic": {
+      "type2_diabetes": {
+        "total_reward": -11.452144798278317,
+        "composite_efficiency": 0.23215145863825276,
+        "efficacy": 0.20234246959807606,
+        "safety": -1.0,
+        "compliance": -1.0,
+        "cost": -0.34,
+        "progress": 0.04000000000000001,
+        "correction_triggers": 31.0,
+        "stage_transitions": 0.0
+      },
+      "hypertension": {
+        "total_reward": -11.2858193410313,
+        "composite_efficiency": 0.2505777032261475,
+        "efficacy": 0.20927608744367915,
+        "safety": -1.0,
+        "compliance": -1.0,
+        "cost": -0.4216666666666667,
+        "progress": 0.08000000000000002,
+        "correction_triggers": 31.0,
+        "stage_transitions": 0.0
+      },
+      "nsclc": {
+        "total_reward": -9.485441621512475,
+        "composite_efficiency": 0.24958170620858017,
+        "efficacy": 0.22792950293606115,
+        "safety": -1.0,
+        "compliance": -1.0,
+        "cost": -0.4683333333333333,
+        "progress": 0.08000000000000002,
+        "correction_triggers": 28.0,
+        "stage_transitions": 0.0
+      }
+    },
+    "trained": {
+      "type2_diabetes": {
+        "total_reward": -3.7000000000000006,
+        "composite_efficiency": 0.37142857142857144,
+        "efficacy": 0.0,
+        "safety": 0.0,
+        "compliance": 0.5,
+        "cost": -0.2,
+        "progress": 0.0,
+        "correction_triggers": 32.0,
+        "stage_transitions": 0.0
+      },
+      "hypertension": {
+        "total_reward": -3.7000000000000006,
+        "composite_efficiency": 0.37142857142857144,
+        "efficacy": 0.0,
+        "safety": 0.0,
+        "compliance": 0.5,
+        "cost": -0.2,
+        "progress": 0.0,
+        "correction_triggers": 32.0,
+        "stage_transitions": 0.0
+      },
+      "nsclc": {
+        "total_reward": -3.7000000000000006,
+        "composite_efficiency": 0.37142857142857144,
+        "efficacy": 0.0,
+        "safety": 0.0,
+        "compliance": 0.5,
+        "cost": -0.2,
+        "progress": 0.0,
+        "correction_triggers": 32.0,
+        "stage_transitions": 0.0
+      }
+    }
+  },
+  "phase_metrics": {
+    "random": {
+      "stage1": {
+        "composite_efficiency": 0.29272326587585995,
+        "support": 48.0
+      }
+    },
+    "heuristic": {
+      "stage1": {
+        "composite_efficiency": 0.24775454165023506,
+        "support": 48.0
+      }
+    },
+    "trained": {
+      "stage1": {
+        "composite_efficiency": 0.3714285714285716,
+        "support": 48.0
+      }
+    }
+  },
+  "correction_summary": {
+    "random": 26.666666666666668,
+    "heuristic": 30.0,
+    "trained": 32.0
+  },
+  "stage_config": {
+    "stage1": {
+      "name": "stage1",
+      "cohort_size": 10,
+      "max_weeks": 16,
+      "max_adverse_events": 3,
+      "max_budget": 150000.0,
+      "event_rates": {
+        "adverse_event_prob": 0.015,
+        "serious_adverse_event_prob": 0.002,
+        "dropout_prob": 0.01,
+        "recruit_variation": 0.2
+      },
+      "promotion_mean_reward": 0.25,
+      "promotion_window": 20
+    },
+    "stage2": {
+      "name": "stage2",
+      "cohort_size": 30,
+      "max_weeks": 20,
+      "max_adverse_events": 6,
+      "max_budget": 450000.0,
+      "event_rates": {
+        "adverse_event_prob": 0.03,
+        "serious_adverse_event_prob": 0.004,
+        "dropout_prob": 0.02,
+        "recruit_variation": 0.2
+      },
+      "promotion_mean_reward": 0.35,
+      "promotion_window": 20
+    },
+    "stage3": {
+      "name": "stage3",
+      "cohort_size": 60,
+      "max_weeks": 24,
+      "max_adverse_events": 10,
+      "max_budget": 900000.0,
+      "event_rates": {
+        "adverse_event_prob": 0.05,
+        "serious_adverse_event_prob": 0.007,
+        "dropout_prob": 0.03,
+        "recruit_variation": 0.2
+      },
+      "promotion_mean_reward": 0.45,
+      "promotion_window": 20
+    }
+  }
+}

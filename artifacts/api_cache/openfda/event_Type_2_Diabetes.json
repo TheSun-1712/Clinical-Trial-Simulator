@@ -1,0 +1,18 @@
+{
+  "source": "fixture",
+  "meta": {
+    "disclaimer": "FAERS reports do not establish causation."
+  },
+  "results": [
+    {
+      "seriousnesshospitalization": "1",
+      "patient": {
+        "reaction": [
+          {
+            "reactionmeddrapt": "Nausea"
+          }
+        ]
+      }
+    }
+  ]
+}

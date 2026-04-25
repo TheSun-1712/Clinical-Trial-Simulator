@@ -27,6 +27,7 @@ from cts.rewards.verifiers import reward_breakdown
 from eval.analytics import load_latest_benchmark_report
 from eval.baselines import heuristic_policy_action, random_policy_action
 from eval.run_benchmark import run_benchmark
+from cts.integrations.clients import PubMedClient, OpenFDAClient
 
 
 st.set_page_config(page_title="Clinical Trial Simulator", layout="wide")
@@ -381,10 +382,55 @@ with agent_tab:
 with evidence_tab:
     st.subheader("Medical Evidence Store")
     st.caption("Grounded literature and trial evidence retrieved to justify policy decisions.")
-    st.write("Evidence records retrieved from ClinicalTrials.gov, PubMed, and openFDA.")
-    if policy_mode == "neural_llm":
-        st.markdown("- [CT2024-X] Safety profile of Component A in Phase II...")
-        st.markdown("- [FDA-2023] Guidance on biomarker-driven endpoints...")
+    
+    with st.spinner("Fetching live evidence from PubMed and OpenFDA..."):
+        try:
+            pubmed = PubMedClient()
+            openfda = OpenFDAClient()
+            
+            # Map internal disease keys to human-readable search terms
+            disease_map = {
+                "type2_diabetes": "Type 2 Diabetes",
+                "hypertension": "Hypertension",
+                "nsclc": "Non-Small Cell Lung Cancer"
+            }
+            search_term = disease_map.get(disease, disease)
+            
+            # Search for the selected disease + general clinical trials
+            pm_results = pubmed.search_literature(disease=search_term, intervention="drug therapy", endpoint="safety")
+            pmids = pm_results.get("esearchresult", {}).get("idlist", [])[:3]
+            
+            st.markdown("#### PubMed Literature")
+            if pmids and pmids[0] != "00000000":
+                for pmid in pmids:
+                    summary = pubmed.fetch_summary(pmid)
+                    res = summary.get("result", {}).get(pmid, {})
+                    title = res.get("title", "No Title Found")
+                    date = res.get("pubdate", "Unknown Date")
+                    source = res.get("source", "PubMed")
+                    st.markdown(f"- **[{date}]** {title}")
+                    st.caption(f"Source: {source} | PMID: {pmid}")
+            else:
+                st.info("No live PubMed results found. Displaying synthetic research priors.")
+                st.markdown("- **[2024]** Efficacy of GLP-1 agonists in Type 2 Diabetes cohorts.")
+                st.markdown("- **[2023]** Safety meta-analysis of sodium-glucose cotransporter 2 inhibitors.")
+
+            st.markdown("#### OpenFDA Adverse Events")
+            # Using 'drug_event' with the human readable search term
+            fda_results = openfda.drug_event(drug_name=search_term)
+            events = fda_results.get("results", [])
+            if events and fda_results.get("source") != "fixture":
+                for i, ev in enumerate(events):
+                    reactions = ", ".join([r.get("reactionmeddrapt", "unknown") for r in ev.get("patient", {}).get("reaction", [])])
+                    serious = "Yes" if ev.get("seriousnesshospitalization") == "1" else "No"
+                    st.markdown(f"- **FDA Report #{i+1}**: {reactions}")
+                    st.caption(f"Hospitalization: {serious}")
+            else:
+                st.info("No live FDA records found. Displaying historical safety priors.")
+                st.markdown("- **Safety Signal**: Minor gastrointestinal reactions reported in 5% of synthetic cohort.")
+                st.markdown("- **Warning**: Observed correlation between dosage > 1.2x and mild hypertension.")
+        except Exception as e:
+            st.error(f"Evidence retrieval service currently unavailable: {e}")
 
 with composition_tab:
     st.subheader("Drug Composition Optimization")
