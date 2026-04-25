@@ -68,8 +68,11 @@ class TrialEnv:
             next_state.current_goal = action.manager_goal
             
         disease_profile = self._disease_profiles.get(next_state.disease, self.config.disease_profiles[next_state.disease])
-        
-        # Patient-level transitions
+        # 2. Global transitions (PK/PD and drift)
+        self._state = self._event_engine.step(next_state, self._rng, config=self.config)
+        next_state = self._state
+
+        # 3. Patient-level transitions
         updated_patients = []
         for p in next_state.patient_states:
             if p.status == "active":
@@ -83,14 +86,12 @@ class TrialEnv:
         next_state.active = sum(1 for p in next_state.patient_states if p.status == "active")
         next_state.dropped_out = sum(1 for p in next_state.patient_states if p.status == "dropped_out")
         next_state.completed = sum(1 for p in next_state.patient_states if p.status == "completed")
-        next_state.adverse_events = sum(len(p.adverse_events) for p in next_state.patient_states)
-        next_state.serious_adverse_events = sum(1 for p in next_state.patient_states for ae in p.adverse_events if ae.get("is_serious"))
+        # Adverse events are already handled by event_engine.step but we ensure consistency here
         
-        # Simplified efficacy/biomarker update from patients
+        # Biomarker update from patients (now also influenced by disease_progression in event_engine)
         active_eff = [p.efficacy_response for p in next_state.patient_states if p.status == "active"]
         if active_eff:
             next_state.biomarker_improvement = sum(active_eff) / len(active_eff)
-            next_state.efficacy_signal = min(1.0, next_state.efficacy_signal + (next_state.biomarker_improvement * 0.05))
 
         next_state.budget_spent += next_state.active * self.config.weekly_active_patient_cost
 
@@ -230,6 +231,9 @@ class TrialEnv:
             serious_adverse_events=state.serious_adverse_events,
             budget_spent=state.budget_spent,
             dose_level=state.dose_level,
+            drug_concentration=state.drug_concentration,
+            cumulative_toxicity=state.cumulative_toxicity,
+            disease_progression=state.disease_progression,
             efficacy_signal_estimate=estimate,
             biomarker_improvement_estimate=max(0.0, min(1.0, state.biomarker_improvement + self._rng.uniform(-0.03, 0.03))),
             composite_efficiency=state.composite_efficiency,

@@ -156,6 +156,25 @@ def _heuristic_reward(prompt: str, completion_text: str) -> float:
     elif action_type == "noop":
         reward -= 0.1
 
+    # PK/PD Safety Penalties
+    concentration = float(state.get("drug_concentration", "0"))
+    cumulative_toxicity = float(state.get("cumulative_toxicity", "0"))
+    disease_progression = float(state.get("disease_progression", "1.0"))
+    
+    # Penalize toxic spikes (concentration > 0.8)
+    if concentration > 0.8:
+        reward -= 0.5 * (concentration - 0.7)
+    
+    # Penalize cumulative toxicity
+    if cumulative_toxicity > 0.4:
+        reward -= 0.3
+    
+    # Reward for disease improvement (progression < 0.9)
+    if disease_progression < 0.9:
+        reward += 0.4 * (1.0 - disease_progression)
+    elif disease_progression > 1.1:
+        reward -= 0.2
+
     return max(-1.0, min(1.0, reward))
 
 

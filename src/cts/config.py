@@ -105,6 +105,12 @@ class TrialConfig(BaseModel):
         }
     )
     initial_composition: Dict[str, float] = Field(default_factory=lambda: {"a": 0.34, "b": 0.33, "c": 0.33})
+    pk_elimination_rate: float = Field(default=0.35, ge=0.0, le=1.0)
+    pk_absorption_rate: float = Field(default=0.85, ge=0.0, le=1.0)
+    pd_emax: float = Field(default=0.95, ge=0.0)
+    pd_ec50: float = Field(default=0.45, ge=0.0)
+    disease_drift_base: float = Field(default=0.012, ge=0.0)
+
     disease_profiles: Dict[DiseaseType, dict] = Field(
         default_factory=lambda: {
             DiseaseType.TYPE2_DIABETES: {
@@ -114,6 +120,8 @@ class TrialConfig(BaseModel):
                 "fatality_floor": 0.001,
                 "major_threshold": 0.58,
                 "fatal_threshold": 0.83,
+                "drift_rate": 0.015,
+                "metric_name": "HbA1c",
             },
             DiseaseType.HYPERTENSION: {
                 "name": "Hypertension",
@@ -122,6 +130,8 @@ class TrialConfig(BaseModel):
                 "fatality_floor": 0.0006,
                 "major_threshold": 0.55,
                 "fatal_threshold": 0.80,
+                "drift_rate": 0.022,
+                "metric_name": "Systolic BP",
             },
             DiseaseType.NSCLC: {
                 "name": "NSCLC",
@@ -130,6 +140,8 @@ class TrialConfig(BaseModel):
                 "fatality_floor": 0.0025,
                 "major_threshold": 0.50,
                 "fatal_threshold": 0.76,
+                "drift_rate": 0.035,
+                "metric_name": "Tumor Size",
             },
         }
     )

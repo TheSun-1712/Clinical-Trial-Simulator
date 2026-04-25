@@ -62,6 +62,9 @@ class TrialState:
     serious_adverse_events: int = 0
     budget_spent: float = 0.0
     dose_level: float = 1.0
+    drug_concentration: float = 0.0
+    cumulative_toxicity: float = 0.0
+    disease_progression: float = 1.0  # 1.0 = base/healthy, lower is better or worse depending on metric
     disease: DiseaseType = DiseaseType.TYPE2_DIABETES
     current_goal: ManagerGoal = ManagerGoal.RECRUIT_PHASE
     composition: Dict[str, float] = field(default_factory=lambda: {"a": 0.34, "b": 0.33, "c": 0.33})
@@ -100,6 +103,9 @@ class Observation:
     serious_adverse_events: int
     budget_spent: float
     dose_level: float
+    drug_concentration: float
+    cumulative_toxicity: float
+    disease_progression: float
     efficacy_signal_estimate: float
     biomarker_improvement_estimate: float
     composite_efficiency: float

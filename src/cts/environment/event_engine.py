@@ -72,19 +72,32 @@ class EventEngine:
         state.lab_history.append({"alt": 25.0 + random.uniform(-5, 5)})
         return state
 
-    def step(self, state: TrialState, rng: random.Random, disease_profile: dict | None = None) -> TrialState:
+    def step(self, state: TrialState, rng: random.Random, config: TrialConfig | None = None) -> TrialState:
         next_state = copy.deepcopy(state)
-        profile = disease_profile or {
-            "baseline_response": 0.55,
-            "toxicity_sensitivity": 0.4,
-            "fatality_floor": 0.001,
-            "major_threshold": 0.58,
-            "fatal_threshold": 0.82,
-        }
+        # Handle config fallback for legacy calls
+        from cts.config import default_config
+        cfg = config or default_config()
+        
+        disease_profile = cfg.disease_profiles.get(next_state.disease, {})
         phase_profile = self._phase_profile(next_state.stage_name)
-        phase_response_boost = phase_profile["response_boost"]
-        phase_toxicity_scale = phase_profile["toxicity_scale"]
-        phase_dropout_scale = phase_profile["dropout_scale"]
+        
+        # 1. Update Pharmacokinetics (Concentration)
+        # Absorption of the current dose level
+        absorbed = next_state.dose_level * cfg.pk_absorption_rate
+        # Elimination of existing concentration
+        next_state.drug_concentration = (next_state.drug_concentration * (1.0 - cfg.pk_elimination_rate)) + absorbed
+        
+        # 2. Update Disease Progression (Drift)
+        # Base drift (biomarkers getting worse)
+        drift = disease_profile.get("drift_rate", cfg.disease_drift_base)
+        # PD effect: Drug concentration reduces disease progression
+        # Emax model: effect = (Emax * C) / (EC50 + C)
+        concentration = next_state.drug_concentration
+        pd_effect = (cfg.pd_emax * concentration) / (cfg.pd_ec50 + concentration)
+        
+        # Update disease progression state (e.g. tumor size decreases with effect, HbA1c decreases with effect)
+        # We model progression as a value that increases with drift and decreases with pd_effect
+        next_state.disease_progression = max(0.1, next_state.disease_progression + drift - (pd_effect * 0.15))
 
         if next_state.active > 0:
             dropped = 0
@@ -94,17 +107,28 @@ class EventEngine:
             minor = 0
             major = 0
             improvement_sum = 0.0
+            
+            # Toxicity also follows a PK/PD relationship
+            # Cumulative toxicity increases if concentration is high
+            tox_spike = max(0.0, next_state.drug_concentration - 0.7) * 0.1
+            next_state.cumulative_toxicity = max(0.0, next_state.cumulative_toxicity * 0.9 + tox_spike)
+
             for _ in range(min(next_state.active, next_state.sample_batch_size)):
                 latent = self._sample_patient_latent(rng)
-                efficacy, toxicity = self._simulate_response(
+                
+                # Efficacy and Toxicity are now influenced by the PK/PD state
+                efficacy, toxicity = self._simulate_response_pkpd(
                     latent,
                     next_state.composition,
-                    profile,
+                    next_state.drug_concentration,
+                    next_state.cumulative_toxicity,
+                    disease_profile,
                     rng,
-                    phase_response_boost=phase_response_boost,
-                    phase_toxicity_scale=phase_toxicity_scale,
+                    phase_boost=phase_profile["response_boost"],
+                    phase_tox_scale=phase_profile["toxicity_scale"],
                 )
-                reaction = self._classify_reaction(toxicity, profile)
+                
+                reaction = self._classify_reaction(toxicity, disease_profile)
 
                 if reaction != ReactionSeverity.NONE:
                     aes += 1
@@ -119,7 +143,7 @@ class EventEngine:
 
                 improvement_sum += efficacy
 
-                if rng.random() < min(1.0, self.rates.dropout_prob * phase_dropout_scale):
+                if rng.random() < min(1.0, self.rates.dropout_prob * phase_profile["dropout_scale"] * (1.0 + next_state.cumulative_toxicity)):
                     dropped += 1
 
             next_state.active = max(0, next_state.active - dropped)
@@ -138,10 +162,48 @@ class EventEngine:
             sampled = max(1, min(next_state.enrolled, next_state.sample_batch_size))
             avg_improvement = improvement_sum / sampled
             next_state.biomarker_improvement = max(0.0, min(1.0, avg_improvement))
-            efficacy_delta = max(0.0, next_state.biomarker_improvement * 0.06 - (serious * 0.002) - (fatal * 0.02))
-            next_state.efficacy_signal = min(1.0, next_state.efficacy_signal + efficacy_delta)
+            
+            # Efficacy signal is a rolling estimate influenced by progression
+            efficacy_delta = max(0.0, (1.0 - next_state.disease_progression) * 0.1 - (serious * 0.002))
+            next_state.efficacy_signal = min(1.0, next_state.efficacy_signal * 0.9 + efficacy_delta)
 
         return next_state
+
+    def _simulate_response_pkpd(
+        self,
+        latent: PatientLatent,
+        composition: dict[str, float],
+        concentration: float,
+        cumulative_toxicity: float,
+        disease_profile: dict,
+        rng: random.Random,
+        phase_boost: float = 1.0,
+        phase_tox_scale: float = 1.0,
+    ) -> tuple[float, float]:
+        c_a = composition.get("a", 0.0)
+        c_b = composition.get("b", 0.0)
+        c_c = composition.get("c", 0.0)
+
+        # Base efficacy derived from concentration and composition
+        # Composition 'a' and 'b' are active, 'c' is toxic
+        efficacy_potency = (0.4 * c_a + 0.3 * c_b - 0.1 * c_c)
+        efficacy = (
+            disease_profile.get("baseline_response", 0.5)
+            + (efficacy_potency * concentration * (1.0 - latent.comorbidity))
+            + rng.gauss(0.0, 0.04)
+        ) * phase_boost
+
+        # Toxicity derived from concentration, cumulative burden, and composition 'c'
+        tox_sensitivity = disease_profile.get("toxicity_sensitivity", 0.4)
+        toxicity = (
+            tox_sensitivity
+            + (0.5 * c_c * concentration)
+            + (0.2 * cumulative_toxicity)
+            + (0.1 * latent.age_factor)
+            + rng.gauss(0.0, 0.05)
+        ) * phase_tox_scale
+
+        return (max(0.0, min(1.0, efficacy)), max(0.0, min(1.0, toxicity)))
 
     def _phase_profile(self, stage_name: str) -> dict[str, float]:
         if stage_name == "stage1":

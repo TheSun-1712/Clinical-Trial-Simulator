@@ -27,7 +27,17 @@ class OpenEnvStepRequest(BaseModel):
     magnitude: float = 0.0
 
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Clinical Trial Simulator API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 env = TrialEnv(default_config())
 sessions: dict[str, TrialEnv] = {}
 
@@ -100,6 +110,50 @@ def stage_config() -> dict:
         "stage2": config.stage2.model_dump(),
         "stage3": config.stage3.model_dump(),
     }
+
+
+class SelectDiseaseRequest(BaseModel):
+    session_id: str
+    disease: DiseaseType
+
+
+@app.get("/simulation/disease-profiles")
+def get_disease_profiles() -> dict:
+    config = default_config()
+    return {"profiles": {k.value: v for k, v in config.disease_profiles.items()}}
+
+
+@app.post("/simulation/select-disease")
+def select_disease(request: SelectDiseaseRequest) -> dict:
+    if request.session_id not in sessions:
+        return {"error": "unknown_session"}
+    
+    env = sessions[request.session_id]
+    env.config = env.config.model_copy(update={"disease": request.disease})
+    result = env.reset()
+    return {"session_id": request.session_id, "observation": result.observation.__dict__}
+
+
+@app.post("/simulation/batch")
+def run_batch_simulation(seed: int = 7) -> dict:
+    results = {}
+    for disease in DiseaseType:
+        config = default_config().model_copy(update={"disease": disease})
+        env = TrialEnv(config)
+        reset = env.reset(seed=seed)
+        trajectory = [reset.observation.__dict__]
+        state = reset.state
+        for _ in range(20): # Run 20 weeks
+            # Use heuristic policy for batch baseline
+            from eval.baselines import heuristic_policy_action
+            action = heuristic_policy_action(state)
+            step_res = env.step(action)
+            trajectory.append(step_res.observation.__dict__)
+            state = step_res.state
+            if step_res.terminated or step_res.truncated:
+                break
+        results[disease.value] = trajectory
+    return {"results": results}
 
 
 @app.post("/reset")
