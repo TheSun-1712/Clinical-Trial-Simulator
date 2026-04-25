@@ -106,9 +106,24 @@
     }
   ],
   "metadata": {
+    "episode": 300,
     "condition": "type2_diabetes",
-    "episodes": 300,
-    "final_reward": -8.967161857531655,
-    "mean_reward_all": -9.340127925753276
+    "mean_reward_last50": -9.667623271434664,
+    "source_fda_n": 275,
+    "source_hf_n": 37,
+    "real_priors": {
+      "baseline_response": 0.6006306306306306,
+      "toxicity_sensitivity": 0.5425,
+      "fatality_floor": 0.039724999999999996,
+      "major_threshold": 0.58,
+      "fatal_threshold": 0.83,
+      "mean_age": 60.63941666666666,
+      "pct_female": 0.4985,
+      "mean_weight": 84.21948,
+      "source_fda_n": 275,
+      "source_hf_n": 37,
+      "source_ct_n": 0,
+      "mean_rating": 6.513513513513513
+    }
   }
 }
