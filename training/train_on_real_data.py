@@ -22,7 +22,7 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Ensure local src is prioritised
 root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -38,10 +38,10 @@ from cts.environment.models import (
 )
 from cts.environment.trial_env import TrialEnv
 from cts.policy import (
-    ACTION_LIBRARY, feature_vector, save_policy_checkpoint, HierarchicalPolicy,
+    ACTION_LIBRARY, feature_vector, save_policy_checkpoint,
     init_zero_policy,
 )
-from cts.policy.hierarchical_policy import init_hierarchical_policy
+from cts.policy.hierarchical_policy import HierarchicalPolicy, init_hierarchical_policy
 from cts.rewards.verifiers import reward_breakdown
 from cts.data.real_data_loader import fetch_and_build_priors, DRUG_LOOKUP
 
@@ -138,7 +138,7 @@ def run_episode(
     history_buffer = None
     if tcn_encoder:
         from cts.policy.tcn_encoder import StateHistoryBuffer
-        history_buffer = StateHistoryBuffer(window_size=4, feature_dim=11)
+        history_buffer = StateHistoryBuffer(window_size=4, feature_dim=14)
         
     online_data = {"doses": [], "efficacies": [], "tox_X": [], "tox_y": []}
 
@@ -183,16 +183,16 @@ def run_episode(
             c_b = state.composition.get("b", 0.0)
             c_c = state.composition.get("c", 0.0)
             
-            for p in state.patient_agents:
+            for p in state.patient_states:
                 if p.status == PatientStatus.ACTIVE or p.status == PatientStatus.DROPPED_OUT:
                     # 6-dim feats: [age_norm, sex, weight_norm, c_a, c_b, c_c]
-                    age_norm = p.latent.age / 100.0
-                    sex_idx = 1.0 if p.latent.sex == "F" else 0.0
-                    weight_norm = p.history.weight_kg / 150.0
+                    age_norm = p.profile.age / 100.0
+                    sex_idx = 1.0 if p.profile.sex == "F" else 0.0
+                    weight_norm = p.profile.vitals.get("weight_kg", 75.0) / 150.0
                     online_data["tox_X"].append([age_norm, sex_idx, weight_norm, c_a, c_b, c_c])
                     
                     # Target: did they have a major reaction/accumulated toxicity this week?
-                    label = 1.0 if p.accumulated_toxicity > 0.6 else 0.0
+                    label = 1.0 if len(p.adverse_events) > 0 else 0.0
                     online_data["tox_y"].append([label])
 
         week += 1
@@ -241,7 +241,7 @@ def reinforce_update(
             if tcn_encoder:
                 params += list(tcn_encoder.parameters())
                 from cts.policy.tcn_encoder import StateHistoryBuffer
-                hist_buf = StateHistoryBuffer(window_size=4, feature_dim=11)
+                hist_buf = StateHistoryBuffer(window_size=4, feature_dim=14)
                 
             optimizer = optim.Adam(params, lr=lr)
             optimizer.zero_grad()
@@ -256,7 +256,7 @@ def reinforce_update(
                 if tcn_encoder:
                     hist_buf.add(feats)
                     tensor = hist_buf.get_padded_tensor()
-                    tcn_feats = tcn_encoder(tensor).squeeze(0) # (11,)
+                    tcn_feats = tcn_encoder(tensor).squeeze(0) # (14,)
                 else:
                     tcn_feats = torch.tensor(feats, dtype=torch.float32)
                     
@@ -426,10 +426,16 @@ def train(
     tcn_encoder = None
     try:
         from cts.policy.tcn_encoder import TCNHistoryEncoder
+        from cts.policy.moe_worker import MoEWorker
         tcn_encoder = TCNHistoryEncoder()
         print("[Training] TCN History Encoder successfully initialized.")
+        
+        # Inject MoE Workers into the hierarchical policy
+        for goal in policy.worker.keys():
+            policy.worker[goal] = MoEWorker(input_dim=14, num_experts=3, action_dim=len(ACTION_LIBRARY))
+        print("[Training] MoE Workers successfully injected into policy.")
     except ImportError:
-        print("[Training] TCN not initialized (PyTorch missing).")
+        print("[Training] TCN or MoE not initialized (PyTorch missing).")
 
     # 4. Training loop
     reward_history: List[float] = []
@@ -456,7 +462,7 @@ def train(
             ckpt_path = Path(output_dir) / "checkpoints" / f"real_ep{episode+1:04d}.json"
             ckpt_path.parent.mkdir(parents=True, exist_ok=True)
             save_policy_checkpoint(
-                policy,
+                policy.manager,
                 str(ckpt_path),
                 metadata={
                     "episode": episode + 1,
@@ -468,6 +474,13 @@ def train(
                                     if isinstance(v, (int, float, str))},
                 },
             )
+            
+            if tcn_encoder:
+                import torch
+                torch.save(tcn_encoder.state_dict(), str(ckpt_path).replace(".json", "_tcn.pt"))
+                for goal, wkr in policy.worker.items():
+                    if hasattr(wkr, "state_dict"):
+                        torch.save(wkr.state_dict(), str(ckpt_path).replace(".json", f"_{goal.value}_moe.pt"))
             avg = sum(reward_history[-50:]) / min(50, len(reward_history))
             print(f"  Episode {episode+1:4d}/{n_steps}  |  avg_reward(last50)={avg:.4f}")
 
@@ -475,21 +488,33 @@ def train(
             if avg > best_reward:
                 best_reward = avg
                 best_path = Path(output_dir) / f"best_{condition}.json"
-                save_policy_checkpoint(policy, str(best_path),
+                save_policy_checkpoint(policy.manager, str(best_path),
                                        metadata={"condition": condition, "best_reward": best_reward})
+                if tcn_encoder:
+                    import torch
+                    torch.save(tcn_encoder.state_dict(), str(best_path).replace(".json", "_tcn.pt"))
+                    for goal, wkr in policy.worker.items():
+                        if hasattr(wkr, "state_dict"):
+                            torch.save(wkr.state_dict(), str(best_path).replace(".json", f"_{goal.value}_moe.pt"))
 
     # 5. Save final checkpoint as "latest"
     latest_path = Path(output_dir) / "latest.json"
     save_policy_checkpoint(
-        policy,
+        policy.manager,
         str(latest_path),
         metadata={
             "condition": condition,
             "episodes": n_steps,
             "final_reward": reward_history[-1],
             "mean_reward_all": sum(reward_history) / len(reward_history),
-        },
+        }
     )
+    if tcn_encoder:
+        import torch
+        torch.save(tcn_encoder.state_dict(), str(latest_path).replace(".json", "_tcn.pt"))
+        for goal, wkr in policy.worker.items():
+            if hasattr(wkr, "state_dict"):
+                torch.save(wkr.state_dict(), str(latest_path).replace(".json", f"_{goal.value}_moe.pt"))
 
     # 6. Save reward history JSON for dashboard plotting
     hist_path = Path(output_dir) / "checkpoints" / "reward_history.json"

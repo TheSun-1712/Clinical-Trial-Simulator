@@ -6,6 +6,13 @@ import time
 from pathlib import Path
 from typing import Any
 
+import os
+import sys
+
+root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(root, "src"))
+sys.path.insert(0, root)
+
 from training.train_grpo import train_lightweight_grpo, train_with_trl_unsloth
 
 

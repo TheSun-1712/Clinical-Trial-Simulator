@@ -10,7 +10,7 @@ from real OpenFDA records before the REINFORCE loop begins.
 """
 
 import os
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Tuple, Any, Optional
 
 # We'll import torch gracefully so the whole app doesn't crash if it's missing
 try:

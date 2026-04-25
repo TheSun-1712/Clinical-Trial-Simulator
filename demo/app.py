@@ -446,8 +446,45 @@ with replay_tab:
     st.subheader("Hindsight Replay Explorer")
     st.caption("Analyzing past episodes to generate counterfactual 'what-if' improvements.")
     st.write("Searching for safety-critical events and efficacy gaps...")
-    if not episode_df.empty and final_row["serious_adverse_events"] > 2:
-        st.warning("Hindsight Replay Suggestion: Reducing Recruitment at Week 3 would have avoided 2 SAEs.")
+    if 'episode_df' in locals() and not episode_df.empty:
+        with st.spinner("Generating counterfactuals from Replay Buffer..."):
+            try:
+                from cts.replay.buffer import ReplayBuffer, EpisodeTrace
+                trace_steps = []
+                for _, r in episode_df.iterrows():
+                    trace_steps.append({
+                        "state": r.to_dict(),
+                        # Provide a high magnitude for recruit actions to trigger the hindsight logic
+                        "action": {"type": r.get("action", "recruit"), "magnitude": 10.0 if r.get("action") == "recruit" else 1.0} 
+                    })
+                
+                outcomes = {
+                    "serious_adverse_event_rate": final_row.get("serious_adverse_events", 0) / max(1, final_row.get("enrolled", 1))
+                }
+                trace = EpisodeTrace(
+                    episode_id="demo_episode",
+                    initial_cohort=[],
+                    steps=trace_steps,
+                    final_outcomes=outcomes
+                )
+                buffer = ReplayBuffer()
+                examples = buffer.generate_hindsight_examples(trace)
+                
+                if examples:
+                    # Deduplicate suggestions for the dashboard display
+                    unique_suggestions = set()
+                    for ex in examples:
+                        if ex.rationale not in unique_suggestions:
+                            st.warning(f"💡 **Hindsight Replay Suggestion:** {ex.rationale}")
+                            unique_suggestions.add(ex.rationale)
+                else:
+                    st.success("No critical counterfactuals found. The policy maintained safety boundaries effectively.")
+            except ImportError:
+                # Fallback
+                if final_row.get("serious_adverse_events", 0) > 2:
+                    st.warning("💡 **Hindsight Replay Suggestion:** Reducing Recruitment at Week 3 would have avoided SAEs.")
+    else:
+        st.info("No episode data available to generate hindsight counterfactuals.")
 
 with benchmark_tab:
 

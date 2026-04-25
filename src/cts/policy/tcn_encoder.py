@@ -22,7 +22,7 @@ class TCNHistoryEncoder(nn.Module):
     """
     1D Convolutional network over a sequence of state feature vectors.
     """
-    def __init__(self, input_features: int = 11, out_features: int = 11):
+    def __init__(self, input_features: int = 14, out_features: int = 14):
         super().__init__()
         if not HAS_TORCH:
             raise ImportError("PyTorch is required for TCNHistoryEncoder.")
@@ -62,7 +62,7 @@ class StateHistoryBuffer:
     """
     Maintains a rolling window of state feature vectors.
     """
-    def __init__(self, window_size: int = 4, feature_dim: int = 11):
+    def __init__(self, window_size: int = 4, feature_dim: int = 14):
         self.window_size = window_size
         self.feature_dim = feature_dim
         self.buffer: List[List[float]] = []
