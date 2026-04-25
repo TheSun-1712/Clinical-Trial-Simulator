@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FlaskConical, BarChart2, Terminal, Sliders,
-  Activity, Wifi, WifiOff, ChevronRight, Play, Pause
+  Activity, Wifi, WifiOff, ChevronRight, Play, Pause, Globe
 } from 'lucide-react';
 import { useTrialStore } from './store';
 import InteractiveTrial from './views/InteractiveTrial';
@@ -13,6 +13,7 @@ import MedicalEvidence from './views/MedicalEvidence';
 import DrugComposition from './views/DrugComposition';
 import HindsightReplay from './views/HindsightReplay';
 import AgentAnalysis from './views/AgentAnalysis';
+import WorldMedicalNews from './views/WorldMedicalNews';
 import ConfigModal from './components/ConfigModal';
 import LandingPage from './LandingPage';
 import { Users, BookOpen, Beaker, History, ShieldCheck } from 'lucide-react';
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { id: 'composition', label: 'Drug Composition', icon: Beaker, desc: 'Ratios A/B/C' },
   { id: 'benchmarks', label: 'Policy Benchmarks', icon: BarChart2, desc: 'Analytics' },
   { id: 'agents', label: 'Agent Analysis', icon: ShieldCheck, desc: 'Logic & Reasoning' },
+  { id: 'worldnews', label: 'Global Med News', icon: Globe, desc: 'Live World Map' },
   { id: 'hindsight', label: 'Hindsight Replay', icon: History, desc: 'Counterfactuals' },
   { id: 'logs', label: 'System Logs', icon: Terminal, desc: 'Audit Trail' },
 ];
@@ -130,6 +132,7 @@ const VIEW_MAP = {
   composition: DrugComposition,
   benchmarks: PolicyBenchmarks,
   agents: AgentAnalysis,
+  worldnews: WorldMedicalNews,
   hindsight: HindsightReplay,
   logs: SystemLogs,
 };

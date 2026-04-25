@@ -21,14 +21,19 @@ def random_policy_action(seed_value: int) -> Action:
 
 
 def heuristic_policy_action(state: TrialState) -> Action:
-    # Heuristic baseline: recruit up to safe limits, pause when any AE appears.
-    if state.adverse_events > 0 or state.fda_flag == "warning":
+    # Dynamic heuristic baseline: recruit bravely, adjust doses, and file reports to show off the UI.
+    if state.fda_flag == "hold":
+        return Action(type=ActionType.FILE_INTERIM_REPORT, magnitude=0.0)
+        
+    if state.serious_adverse_events > 3 or state.fda_flag == "warning":
         return Action(type=ActionType.HOLD_ENROLLMENT, magnitude=0.0)
 
     if state.enrolled < state.cohort_target:
-        return Action(type=ActionType.RECRUIT, magnitude=3.0)
+        return Action(type=ActionType.RECRUIT, magnitude=5.0)
 
-    if state.fda_flag == "hold":
-        return Action(type=ActionType.FILE_INTERIM_REPORT, magnitude=0.0)
+    if state.efficacy_signal < 0.6 and state.dose_level < 1.4:
+        return Action(type=ActionType.ADJUST_DOSE, magnitude=0.1)
+    elif state.cumulative_toxicity > 0.3:
+        return Action(type=ActionType.ADJUST_DOSE, magnitude=-0.1)
 
     return Action(type=ActionType.NOOP, magnitude=0.0)

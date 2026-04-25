@@ -30,7 +30,10 @@ class OpenEnvStepRequest(BaseModel):
 
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Clinical Trial Simulator API")
+from cts.data.db import init_db
+init_db()
+
+app = FastAPI(title="OpenEnv API - Clinical Trial Simulator")
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,8 +42,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-env = TrialEnv(default_config())
+from fastapi import HTTPException
+from cts.data.realworld_apis import fetch_clinical_trials, fetch_adverse_events, fetch_recent_literature
+from cts.data.serp_scanner import fetch_medical_news
+
+# Global session store
 sessions: dict[str, TrialEnv] = {}
+
+# Helper to retrieve environment by session id
+def _session_env(session_id: str):
+    env = sessions.get(session_id)
+    if not env:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return env
+
 
 
 def _benchmark_report() -> dict:
@@ -157,41 +172,51 @@ def get_patients(session_id: str) -> dict:
 
 @app.get("/simulation/evidence/{disease}")
 def get_evidence(disease: str) -> dict:
-    from cts.integrations.clients import PubMedClient, OpenFDAClient
-    pubmed = PubMedClient()
-    fda = OpenFDAClient()
-    
-    disease_map = {
-        "type2_diabetes": "Type 2 Diabetes",
-        "hypertension": "Hypertension",
-        "nsclc": "Non-Small Cell Lung Cancer"
-    }
-    term = disease_map.get(disease, disease)
-    
-    pm_results = pubmed.search_literature(disease=term, intervention="drug therapy", endpoint="safety")
-    pm_ids = pm_results.get("esearchresult", {}).get("idlist", [])[:3]
-    articles = []
-    for pmid in pm_ids:
-        if pmid == "00000000": continue
-        summary = pubmed.fetch_summary(pmid)
-        res = summary.get("result", {}).get(pmid, {})
-        articles.append({
-            "title": res.get("title", "No Title"),
-            "date": res.get("pubdate", "Unknown"),
-            "source": res.get("source", "PubMed"),
-            "id": pmid
-        })
-        
-    fda_results = fda.drug_event(drug_name=term)
-    events = []
-    for ev in fda_results.get("results", [])[:3]:
-        reactions = [r.get("reactionmeddrapt") for r in ev.get("patient", {}).get("reaction", [])]
-        events.append({
-            "reactions": reactions,
-            "seriousness": ev.get("seriousnesshospitalization") == "1"
-        })
-        
-    return {"articles": articles, "events": events}
+    """Fetch real-world clinical trial data, literature, and adverse events for a disease."""
+    # Use the unified realworld API helpers
+    trials = fetch_clinical_trials(disease)
+    literature = fetch_recent_literature(disease)
+    adverse = fetch_adverse_events(disease)
+    return {"trials": trials, "literature": literature, "adverse_events": adverse}
+
+# New endpoint: drug composition (dynamic, no manual edit)
+@app.get("/simulation/drug_composition/{session_id}")
+def get_drug_composition(session_id: str):
+    env = _session_env(session_id)
+    state = env.state
+    comp = getattr(state, "composition", {"a": 0.33, "b": 0.33, "c": 0.33})
+    dose = getattr(state, "dose_level", 1.0)
+    return {"composition": comp, "dose_level": dose}
+
+# New endpoint: policy benchmarks
+@app.get("/simulation/benchmarks/{session_id}")
+def get_benchmarks(session_id: str):
+    try:
+        report = load_latest_benchmark_report()
+        if report is None:
+            report = {}
+    except Exception:
+        report = {}
+    heuristic = report.get("heuristic", {}).get("total_reward", 0.0)
+    trained = report.get("trained", {}).get("total_reward", 0.0)
+    random = report.get("random", {}).get("total_reward", 0.0)
+    return {"heuristic_reward": heuristic, "trained_reward": trained, "random_reward": random}
+
+# New endpoint: agent analysis data for graphs
+@app.get("/simulation/agent_analysis/{session_id}")
+def get_agent_analysis(session_id: str):
+    env = _session_env(session_id)
+    history = getattr(env, "history", [])
+    recent_rewards = [step.get("reward", 0.0) for step in history[-20:]]
+    breakdown = [step.get("info", {}).get("reward_breakdown", {}) for step in history[-20:]]
+    return {"recent_rewards": recent_rewards, "reward_breakdown": breakdown}
+
+# New endpoint: world map news (already added earlier, ensure import)
+@app.get("/simulation/news")
+def get_news(limit: int = 20):
+    news_items = fetch_medical_news(num_results=limit)
+    return {"news": news_items}
+
 
 
 class PolicyActionRequest(BaseModel):
@@ -206,12 +231,8 @@ def get_policy_action(request: PolicyActionRequest) -> dict:
         return {"error": "unknown_session"}
     
     env = sessions[request.session_id]
-    if not checkpoint_exists(request.checkpoint_path):
-        from eval.baselines import heuristic_policy_action
-        action = heuristic_policy_action(env.state)
-    else:
-        policy = load_any_policy_checkpoint(request.checkpoint_path)
-        action = policy.select_action(env.state, env.config, rng=random.Random(42))
+    from eval.baselines import heuristic_policy_action
+    action = heuristic_policy_action(env.state)
         
     return {"action_type": action.type.value, "magnitude": action.magnitude}
 
@@ -277,7 +298,26 @@ def openenv_step(request: OpenEnvStepRequest) -> dict:
         return {"error": "unknown_session"}
 
     action = Action(type=request.action_type, magnitude=request.magnitude)
-    result = sessions[request.session_id].step(action)
+    action_dict = {"type": action.type.value, "magnitude": action.magnitude}
+    
+    env = sessions[request.session_id]
+    prev_state = env.state
+    result = env.step(action)
+    reward = result.info.get("reward", {}).get("total", 0.0)
+    
+    # Log to SQLite experience replay (safe serialization)
+    from cts.data.db import log_transition
+    def _safe_dict(obj):
+        if hasattr(obj, '__dict__'):
+            return {k: v for k, v in obj.__dict__.items() if isinstance(v, (int, float, str, bool, type(None)))}
+        if isinstance(obj, dict):
+            return {k: v for k, v in obj.items() if isinstance(v, (int, float, str, bool, type(None)))}
+        return {}
+    log_transition(
+        request.session_id, result.state.week,
+        _safe_dict(prev_state), action_dict, reward, _safe_dict(result.state), True
+    )
+
     return {
         "session_id": request.session_id,
         "observation": result.observation.__dict__,
@@ -285,4 +325,5 @@ def openenv_step(request: OpenEnvStepRequest) -> dict:
         "terminated": result.terminated,
         "truncated": result.truncated,
         "info": result.info,
+        "reward": reward,
     }

@@ -1,136 +1,165 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState, useRef } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend
 } from 'recharts';
-import { api } from '../api';
-import { TrendingUp, Award, DollarSign, Percent, RefreshCw } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { BarChart2, RefreshCw, TrendingUp } from 'lucide-react';
+import { useTrialStore } from '../store';
 
-const POLICY_COLORS = {
-  'Random Baseline': '#ef4444',
-  'Heuristic Rules': '#f59e0b',
-  'Trained AI Policy': '#10b981',
-};
-
-const CURVE_KEYS = [
-  { key: 'random', label: 'Random Baseline', color: '#ef4444' },
-  { key: 'heuristic', label: 'Heuristic Rules', color: '#f59e0b' },
-  { key: 'trained', label: 'Trained AI Policy', color: '#10b981' },
-];
-
-const SkeletonRow = () => (
-  <tr>
-    {[1, 2, 3, 4].map((i) => (
-      <td key={i} style={{ padding: '14px 16px' }}>
-        <motion.div animate={{ opacity: [0.3, 0.7, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.1 }}
-          style={{ height: 14, background: 'rgba(255,255,255,0.08)', borderRadius: 6 }} />
-      </td>
-    ))}
-  </tr>
-);
+const API_BASE = 'http://localhost:8000';
 
 export default function PolicyBenchmarks() {
-  const [data, setData] = useState(null);
+  const { sessionId } = useTrialStore();
+  const [benchmarks, setBenchmarks] = useState({ heuristic_reward: 0, trained_reward: 0, random_reward: 0 });
+  const [diseaseData, setDiseaseData] = useState([]);
+  const [phaseData, setPhaseData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const timerRef = useRef(null);
 
-  const load = async () => {
-    setLoading(true);
-    const res = await api.runBenchmark();
-    setData(res);
+  const fetchBenchmarks = async () => {
+    const sid = sessionId || 'default';
+    try {
+      // Benchmark totals
+      const bRes = await fetch(`${API_BASE}/simulation/benchmarks/${sid}`);
+      if (bRes.ok) {
+        const b = await bRes.json();
+        setBenchmarks(b);
+        setLastUpdated(new Date());
+      }
+
+      // Disease efficiency (trained)
+      const dRes = await fetch(`${API_BASE}/analytics/efficiency-by-disease?policy=trained`);
+      if (dRes.ok) {
+        const d = await dRes.json();
+        const entries = Object.entries(d.disease_metrics || {}).map(([k, v]) => ({
+          disease: k.replace('_', ' '),
+          mean_reward: +(v.mean_reward ?? 0).toFixed(2),
+          success_rate: +(v.success_rate ?? 0).toFixed(2),
+        }));
+        setDiseaseData(entries);
+      }
+
+      // Phase efficiency (heuristic vs trained)
+      const hRes = await fetch(`${API_BASE}/analytics/efficiency-by-phase?policy=heuristic`);
+      const tRes = await fetch(`${API_BASE}/analytics/efficiency-by-phase?policy=trained`);
+      if (hRes.ok && tRes.ok) {
+        const hData = await hRes.json();
+        const tData = await tRes.json();
+        const phases = Object.keys({ ...hData.phase_metrics, ...tData.phase_metrics });
+        const merged = phases.map(p => ({
+          phase: p,
+          heuristic: +((hData.phase_metrics[p]?.mean_reward ?? 0)).toFixed(2),
+          trained: +((tData.phase_metrics[p]?.mean_reward ?? 0)).toFixed(2),
+        }));
+        setPhaseData(merged);
+      }
+    } catch (e) {
+      console.error('Benchmarks fetch failed', e);
+    }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    fetchBenchmarks();
+    timerRef.current = setInterval(fetchBenchmarks, 30000); // refresh every 30s
+    return () => clearInterval(timerRef.current);
+  }, [sessionId]);
+
+  const summaryBars = [
+    { name: 'Trained RL', value: benchmarks.trained_reward, color: '#3b82f6' },
+    { name: 'Heuristic', value: benchmarks.heuristic_reward, color: '#10b981' },
+    { name: 'Random', value: benchmarks.random_reward, color: '#ef4444' },
+  ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 20 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800 }}>Policy <span style={{ color: '#3b82f6' }}>Benchmarks</span></h2>
-          <p style={{ color: '#64748b', fontSize: 13, marginTop: 2 }}>Comparing trial coordinator strategies across key metrics</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ padding: 12, background: 'rgba(59,130,246,0.15)', color: '#3b82f6', borderRadius: 14 }}>
+            <BarChart2 size={22} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: 26, fontWeight: 900, margin: 0 }}>Policy Benchmarks</h2>
+            <p style={{ fontSize: 12, color: '#475569', margin: 0 }}>
+              Live comparison: RL Agent vs Heuristic vs Random
+              {lastUpdated && ` · Updated ${lastUpdated.toLocaleTimeString()}`}
+            </p>
+          </div>
         </div>
         <motion.button
-          id="btn-refresh-benchmark"
-          onClick={load}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'rgba(59,130,246,0.15)', border: '1px solid #3b82f640', borderRadius: 12, color: '#3b82f6', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          onClick={fetchBenchmarks}
+          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+          style={{
+            padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(59,130,246,0.3)',
+            background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+            display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+          }}
         >
-          <RefreshCw size={14} /> Refresh
+          <RefreshCw size={12} /> Refresh
         </motion.button>
       </div>
 
-      {/* Leaderboard Table */}
-      <div className="liquid-glass" style={{ overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              {['Policy', 'Total Reward', 'Success Rate', 'Avg. Cost'].map((h) => (
-                <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: '#475569', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <><SkeletonRow /><SkeletonRow /><SkeletonRow /></>
-            ) : data?.results?.map((row, i) => (
-              <motion.tr
-                key={row.policy}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
-                style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i === data.results.length - 1 ? 'rgba(16,185,129,0.06)' : 'transparent' }}
-              >
-                <td style={{ padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {i === data.results.length - 1 && <Award size={14} style={{ color: '#10b981' }} />}
-                    <span style={{ fontWeight: 700, color: POLICY_COLORS[row.policy] ?? '#f8fafc' }}>{row.policy}</span>
-                  </div>
-                </td>
-                <td style={{ padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <TrendingUp size={14} style={{ color: row.total_reward >= 0 ? '#10b981' : '#ef4444' }} />
-                    <span style={{ fontWeight: 700, color: row.total_reward >= 0 ? '#10b981' : '#ef4444' }}>{row.total_reward >= 0 ? '+' : ''}{row.total_reward}</span>
-                  </div>
-                </td>
-                <td style={{ padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Percent size={12} style={{ color: '#94a3b8' }} />
-                    <span style={{ fontWeight: 600 }}>{(row.success_rate * 100).toFixed(0)}%</span>
-                    <div style={{ flex: 1, marginLeft: 6, height: 4, background: 'rgba(255,255,255,0.07)', borderRadius: 99, maxWidth: 80 }}>
-                      <motion.div initial={{ width: 0 }} animate={{ width: `${row.success_rate * 100}%` }} transition={{ duration: 0.8, delay: i * 0.1 }}
-                        style={{ height: '100%', background: POLICY_COLORS[row.policy], borderRadius: 99 }} />
-                    </div>
-                  </div>
-                </td>
-                <td style={{ padding: '14px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
-                    <DollarSign size={12} />
-                    <span style={{ fontWeight: 600 }}>{(row.avg_cost / 1_000_000).toFixed(1)}M</span>
-                  </div>
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {summaryBars.map((p) => (
+          <motion.div key={p.name} whileHover={{ y: -3 }} className="liquid-glass"
+            style={{ padding: 20, borderTop: `3px solid ${p.color}` }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, color: '#475569', marginBottom: 8 }}>
+              {p.name}
+            </div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: p.color }}>
+              {p.value >= 0 ? '+' : ''}{p.value.toFixed(2)}
+            </div>
+            <div style={{ fontSize: 11, color: '#334155', marginTop: 4 }}>Mean Total Reward</div>
+          </motion.div>
+        ))}
       </div>
 
-      {/* Reward Curves Chart */}
-      <div className="liquid-glass" style={{ padding: '20px', flex: 1, minHeight: 280 }}>
-        <h3 style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: '#64748b', marginBottom: 14 }}>Cumulative Reward Curves</h3>
-        <ResponsiveContainer width="100%" height="90%">
-          <LineChart data={data?.reward_curves ?? []} margin={{ top: 4, right: 12, bottom: 0, left: -20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-            <XAxis dataKey="step" stroke="#334155" tick={{ fontSize: 10, fill: '#475569' }} label={{ value: 'Episode Step', position: 'insideBottom', offset: -4, fill: '#475569', fontSize: 10 }} />
-            <YAxis stroke="#334155" tick={{ fontSize: 10, fill: '#475569' }} />
-            <Tooltip contentStyle={{ background: 'rgba(10,10,20,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12 }} />
-            <Legend wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#94a3b8' }} />
-            {CURVE_KEYS.map((c) => (
-              <Line key={c.key} type="monotone" dataKey={c.key} name={c.label} stroke={c.color} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, flex: 1, minHeight: 0 }}>
+        {/* Disease bar chart */}
+        <div className="liquid-glass" style={{ padding: 24, display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 16px 0' }}>Reward by Disease (Trained)</h3>
+          {diseaseData.length === 0 ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: 13 }}>
+              No benchmark report found — run a benchmark first
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+              <BarChart data={diseaseData} margin={{ top: 4, right: 8, left: -20, bottom: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="disease" stroke="#334155" tick={{ fontSize: 10, fill: '#64748b', angle: -20, textAnchor: 'end' }} />
+                <YAxis stroke="#334155" tick={{ fontSize: 10, fill: '#475569' }} />
+                <Tooltip contentStyle={{ background: '#0a0a14', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 11 }} />
+                <Bar dataKey="mean_reward" fill="#3b82f6" name="Mean Reward" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Phase comparison */}
+        <div className="liquid-glass" style={{ padding: 24, display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 16px 0' }}>Heuristic vs RL by Phase</h3>
+          {phaseData.length === 0 ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: 13 }}>
+              No phase data yet
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+              <BarChart data={phaseData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="phase" stroke="#334155" tick={{ fontSize: 10, fill: '#64748b' }} />
+                <YAxis stroke="#334155" tick={{ fontSize: 10, fill: '#475569' }} />
+                <Tooltip contentStyle={{ background: '#0a0a14', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 11 }} />
+                <Legend iconType="circle" iconSize={8} />
+                <Bar dataKey="heuristic" fill="#10b981" name="Heuristic" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="trained" fill="#3b82f6" name="Trained RL" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
     </div>
   );

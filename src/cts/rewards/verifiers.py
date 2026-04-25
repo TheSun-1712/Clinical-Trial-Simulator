@@ -67,7 +67,7 @@ def risk_penalty(state: TrialState, action: Action, next_state: TrialState) -> f
 
 def opportunity_cost_penalty(state: TrialState, action: Action, next_state: TrialState) -> float:
     if next_state.enrolled == 0:
-        return -0.1
+        return -1.0
 
     efficacy_gap = max(0.0, 0.55 - next_state.efficacy_signal)
     safety_pressure = max(0.0, next_state.serious_adverse_events / max(next_state.enrolled, 1) - 0.02)
@@ -108,7 +108,7 @@ def combine_reward(weights: RewardWeights, components: dict[str, float]) -> floa
         + components["timeout"]
     )
     total += 0.08 * components.get("risk", 0.0)
-    total += 0.05 * components.get("opportunity_cost", 0.0)
+    total += 0.50 * components.get("opportunity_cost", 0.0)
     return max(-1.0, min(1.0, total))
 
 

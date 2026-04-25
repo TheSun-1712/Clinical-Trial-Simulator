@@ -12,10 +12,10 @@ class RewardWeights(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     efficacy: float = Field(default=0.35, ge=0.0, le=1.0)
-    safety: float = Field(default=0.30, ge=0.0, le=1.0)
+    safety: float = Field(default=0.15, ge=0.0, le=1.0)
     compliance: float = Field(default=0.15, ge=0.0, le=1.0)
-    cost: float = Field(default=0.10, ge=0.0, le=1.0)
-    progress: float = Field(default=0.10, ge=0.0, le=1.0)
+    cost: float = Field(default=0.05, ge=0.0, le=1.0)
+    progress: float = Field(default=0.30, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_sum(self) -> "RewardWeights":
