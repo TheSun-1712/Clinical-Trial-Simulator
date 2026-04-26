@@ -22,7 +22,7 @@ tags:
 > **The only RL environment where a wrong decision costs $800 million and five years.**
 
 [![HuggingFace Space](https://img.shields.io/badge/🤗_Space-clinical--trial--simulator-blue)](https://huggingface.co/spaces/Helix2003/clinical-trial-simulator)
-[![OpenEnv](https://img.shields.io/badge/OpenEnv-v2.0-green)](https://github.com/Helix2003/Clinical-Trial-Simulator)
+[![OpenEnv](https://img.shields.io/badge/OpenEnv-v2.0-green)](https://github.com/TheSun-1712/Clinical-Trial-Simulator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue)](https://python.org)
 
@@ -386,7 +386,7 @@ clinical-trial-simulator/
 - 🎥 **Demo Video**: [Project Walkthrough](https://huggingface.co/spaces/Helix2003/clinical-trial-simulator)
 - 📝 **HuggingFace Blog**: [Training LLMs on Clinical Trial Management](https://huggingface.co/spaces/Helix2003/clinical-trial-simulator)
 - 🤗 **HF Space**: [https://huggingface.co/spaces/Helix2003/clinical-trial-simulator](https://huggingface.co/spaces/Helix2003/clinical-trial-simulator)
-- 📓 **Colab Notebook**: [Training notebook on GitHub](https://colab.research.google.com/github/Helix2003/Clinical-Trial-Simulator/blob/main/notebooks/clinical_trial_grpo_training.ipynb)
+- 📓 **Colab Notebook**: [Training notebook on GitHub](https://colab.research.google.com/github/TheSun-1712/Clinical-Trial-Simulator/blob/main/notebooks/clinical_trial_grpo_training.ipynb)
 
 ---
 
