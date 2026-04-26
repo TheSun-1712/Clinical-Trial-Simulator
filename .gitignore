@@ -8,6 +8,11 @@ __pycache__/
 artifacts/pytest-temp/
 artifacts/benchmark-smoke*/
 artifacts/trl_smoke/
-artifacts/trl_gpu_8gb/
 artifacts/policy/latest_llm_smoke.json
 artifacts/policy/latest_llm_gpu_smoke.json
+
+# Keep JSON evidence but ignore heavy weights
+artifacts/**/*.pt
+artifacts/**/*.safetensors
+artifacts/**/*.pth
+artifacts/**/*.bin
