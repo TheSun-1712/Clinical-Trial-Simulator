@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class ActionType(str, Enum):
@@ -12,6 +12,11 @@ class ActionType(str, Enum):
     HOLD_ENROLLMENT = "hold_enrollment"
     FILE_INTERIM_REPORT = "file_interim_report"
     IMPLEMENT_AMENDMENT = "implement_amendment"
+    REQUEST_DSMB_REVIEW = "request_dsmb_review"
+    ACTIVATE_SITE = "activate_site"
+    ORDER_DRUG_SUPPLY = "order_drug_supply"
+    REQUEST_FDA_MEETING = "request_fda_meeting"
+    IMPLEMENT_ADAPTIVE_RANDOMIZATION = "implement_adaptive_randomization"
     NOOP = "noop"
 
 
@@ -51,6 +56,7 @@ class Action:
 
 @dataclass
 class TrialState:
+    # ── Core trial state ──────────────────────────────────────────────────────
     week: int = 0
     stage_name: str = "stage1"
     cohort_target: int = 10
@@ -64,7 +70,7 @@ class TrialState:
     dose_level: float = 1.0
     drug_concentration: float = 0.0
     cumulative_toxicity: float = 0.0
-    disease_progression: float = 1.0  # 1.0 = base/healthy, lower is better or worse depending on metric
+    disease_progression: float = 1.0
     disease: DiseaseType = DiseaseType.TYPE2_DIABETES
     current_goal: ManagerGoal = ManagerGoal.RECRUIT_PHASE
     composition: Dict[str, float] = field(default_factory=lambda: {"a": 0.34, "b": 0.33, "c": 0.33})
@@ -91,6 +97,80 @@ class TrialState:
     adverse_event_log: List[int] = field(default_factory=list)
     patient_states: List[Any] = field(default_factory=list)
 
+    # ── Pharmacokinetics (2-compartment) ──────────────────────────────────────
+    pk_central_concentration: float = 0.0
+    pk_peripheral_concentration: float = 0.0
+    pk_auc: float = 0.0
+    pk_cmax: float = 0.0
+    pk_cmin: float = 0.0
+    pk_half_life: float = 0.0
+    pk_therapeutic_range: str = "sub_therapeutic"  # sub_therapeutic | therapeutic | toxic
+    pk_timeseries: List[dict] = field(default_factory=list)
+
+    # ── RCT Control Arm ───────────────────────────────────────────────────────
+    control_arm_size: int = 0
+    randomization_ratio: float = 0.5          # fraction assigned to treatment
+    control_efficacy: float = 0.25            # placebo response
+    control_ae_rate: float = 0.02
+
+    # ── Statistical state ─────────────────────────────────────────────────────
+    current_power: float = 0.0
+    current_pvalue: float = 1.0
+    current_effect_size: float = 0.0
+    alpha_spent: float = 0.0
+    ci_lower: float = -1.0
+    ci_upper: float = 1.0
+    stat_recommendation: str = ""
+
+    # ── Multi-site ────────────────────────────────────────────────────────────
+    sites: List[dict] = field(default_factory=list)
+
+    # ── Drug supply chain ─────────────────────────────────────────────────────
+    drug_supply_available: int = 0
+    drug_supply_in_transit: int = 0
+    drug_supply_dispensed: int = 0
+    drug_supply_wasted: int = 0
+    supply_stockout: bool = False
+    supply_weeks_remaining: float = 0.0
+
+    # ── Regulatory milestones ─────────────────────────────────────────────────
+    milestones: Dict[str, bool] = field(default_factory=lambda: {
+        "ind_filed": False,
+        "phase1_start": False,
+        "phase1_complete": False,
+        "eop2_meeting": False,
+        "phase3_start": False,
+        "phase3_complete": False,
+        "nda_filed": False,
+    })
+    sae_log: List[dict] = field(default_factory=list)
+    amendment_count: int = 0
+
+    # ── Pharmacoeconomics ─────────────────────────────────────────────────────
+    total_trial_cost: float = 0.0
+    cost_per_patient: float = 0.0
+    icer: float = 0.0
+    nda_probability: float = 0.0
+    incremental_qaly: float = 0.0
+
+    # ── Agent outputs ─────────────────────────────────────────────────────────
+    cmo_briefing: str = ""
+    cmo_status: str = "on_track"
+    cmo_urgency: int = 0
+    agent_signals: Dict[str, Any] = field(default_factory=dict)
+    dsmb_decisions: List[dict] = field(default_factory=list)
+    dsmb_latest: Optional[dict] = None
+    pk_dose_recommendation: float = 1.0
+    retention_high_risk: int = 0
+    retention_interventions: List[str] = field(default_factory=list)
+    regulatory_next_milestone: str = "phase1_start"
+    regulatory_recommendation: str = ""
+    economics_recommendation: str = ""
+
+    # ── Primary endpoint ─────────────────────────────────────────────────────
+    primary_endpoint_value: float = 0.0
+    secondary_endpoint_values: Dict[str, float] = field(default_factory=dict)
+
 
 @dataclass
 class Observation:
@@ -116,6 +196,18 @@ class Observation:
     composition: Dict[str, float]
     fda_sentiment: float
     fda_flag: str
+    # Extended fields exposed in observation
+    control_arm_size: int = 0
+    current_power: float = 0.0
+    current_pvalue: float = 1.0
+    pk_central_concentration: float = 0.0
+    pk_cmax: float = 0.0
+    pk_auc: float = 0.0
+    supply_stockout: bool = False
+    cmo_status: str = "on_track"
+    cmo_urgency: int = 0
+    nda_probability: float = 0.0
+    icer: float = 0.0
 
 
 @dataclass

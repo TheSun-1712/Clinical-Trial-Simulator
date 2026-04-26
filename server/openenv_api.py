@@ -328,3 +328,183 @@ def openenv_step(request: OpenEnvStepRequest) -> dict:
         "info": result.info,
         "reward": reward,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# New Comprehensive Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_state(session_id: str):
+    env = sessions.get(session_id)
+    if not env:
+        return None, {"error": "session_not_found"}
+    try:
+        return env, None
+    except RuntimeError:
+        return None, {"error": "session_not_started"}
+
+
+@app.get("/simulation/pkpd/{session_id}")
+def get_pkpd(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    s = env.state
+    return {
+        "c_central": s.pk_central_concentration,
+        "c_peripheral": s.pk_peripheral_concentration,
+        "auc": s.pk_auc,
+        "cmax": s.pk_cmax,
+        "cmin": s.pk_cmin,
+        "t_half_weeks": s.pk_half_life,
+        "therapeutic_range": s.pk_therapeutic_range,
+        "dose_level": s.dose_level,
+        "dose_recommendation": s.pk_dose_recommendation,
+        "timeseries": s.pk_timeseries[-40:],
+        "mec": 0.15,
+        "mtc": 0.80,
+    }
+
+
+@app.get("/simulation/sites/{session_id}")
+def get_sites(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    return {
+        "sites": env.state.sites,
+        "total_enrolled": env.state.enrolled,
+        "week": env.state.week,
+    }
+
+
+@app.get("/simulation/statistics/{session_id}")
+def get_statistics(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    s = env.state
+    stat = s.agent_signals.get("Biostatistician", {})
+    return {
+        "power": s.current_power,
+        "p_value": s.current_pvalue,
+        "effect_size": s.current_effect_size,
+        "ci_lower": s.ci_lower,
+        "ci_upper": s.ci_upper,
+        "alpha_spent": s.alpha_spent,
+        "recommendation": s.stat_recommendation,
+        "stat_history": env._cmo.biostat.latest_history(40),
+        "subgroup_analysis": stat.get("subgroup_analysis", {}),
+        "n_treatment": s.active,
+        "n_control": s.control_arm_size,
+    }
+
+
+@app.get("/simulation/dsmb/{session_id}")
+def get_dsmb(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    s = env.state
+    return {
+        "latest_decision": s.dsmb_latest,
+        "all_decisions": s.dsmb_decisions,
+        "next_review_week": 8 - (s.week % 8) if s.week % 8 != 0 else 8,
+        "ae_rate_treatment": s.serious_adverse_events / max(1, s.enrolled),
+        "ae_rate_control": s.control_ae_rate,
+        "week": s.week,
+    }
+
+
+@app.get("/simulation/supply/{session_id}")
+def get_supply(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    s = env.state
+    snap = env._supply.snapshot(s.week)
+    return {
+        **snap,
+        "active_patients": s.active,
+        "stockout": s.supply_stockout,
+        "week": s.week,
+    }
+
+
+@app.get("/simulation/milestones/{session_id}")
+def get_milestones(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    s = env.state
+    reg = s.agent_signals.get("RegulatoryAffairs", {})
+    return {
+        "milestones": s.milestones,
+        "next_milestone": s.regulatory_next_milestone,
+        "recommendation": s.regulatory_recommendation,
+        "sae_log": s.sae_log[-20:],
+        "amendment_count": s.amendment_count,
+        "fda_flag": s.fda_flag,
+        "fda_sentiment": s.fda_sentiment,
+        "pending_saes": reg.get("pending_saes", 0),
+        "overdue_saes": reg.get("overdue_saes", 0),
+    }
+
+
+@app.get("/simulation/agents/{session_id}")
+def get_agents(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    s = env.state
+    return {
+        "cmo_briefing": s.cmo_briefing,
+        "cmo_status": s.cmo_status,
+        "cmo_urgency": s.cmo_urgency,
+        "agent_signals": s.agent_signals,
+        "top_action": s.agent_signals.get("top_action", ""),
+        "week": s.week,
+    }
+
+
+@app.get("/simulation/economics/{session_id}")
+def get_economics(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    s = env.state
+    econ = s.agent_signals.get("PharmacoEconomics", {})
+    return {
+        "total_trial_cost": s.total_trial_cost,
+        "cost_per_patient": s.cost_per_patient,
+        "icer": s.icer,
+        "nda_probability": s.nda_probability,
+        "incremental_qaly": s.incremental_qaly,
+        "wtp_acceptable": econ.get("wtp_acceptable", True),
+        "recommendation": s.economics_recommendation,
+        "cost_history": env._cmo.economics.history[-30:],
+        "week": s.week,
+    }
+
+
+@app.get("/simulation/endpoints/{session_id}")
+def get_endpoints(session_id: str) -> dict:
+    env, err = _get_state(session_id)
+    if err:
+        return err
+    s = env.state
+    return {
+        "primary_endpoint": {
+            "name": "Biomarker Improvement",
+            "treatment_value": round(s.biomarker_improvement, 4),
+            "control_value": round(s.control_efficacy, 4),
+            "difference": round(s.biomarker_improvement - s.control_efficacy, 4),
+        },
+        "secondary_endpoints": s.secondary_endpoint_values,
+        "disease_progression": s.disease_progression,
+        "efficacy_signal": s.efficacy_signal,
+        "treatment_n": s.active,
+        "control_n": s.control_arm_size,
+        "week": s.week,
+    }
+

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FlaskConical, BarChart2, Terminal, Sliders,
-  Activity, Wifi, WifiOff, ChevronRight, Play, Pause, Globe
+  Activity, Wifi, WifiOff, ChevronRight, Play, Pause, Globe,
+  Beaker, Building2, TrendingUp, Shield, FileCheck, DollarSign
 } from 'lucide-react';
 import { useTrialStore } from './store';
 import InteractiveTrial from './views/InteractiveTrial';
@@ -14,20 +15,32 @@ import DrugComposition from './views/DrugComposition';
 import HindsightReplay from './views/HindsightReplay';
 import AgentAnalysis from './views/AgentAnalysis';
 import WorldMedicalNews from './views/WorldMedicalNews';
+import PKPDDashboard from './views/PKPDDashboard';
+import SiteOperations from './views/SiteOperations';
+import StatisticalEngine from './views/StatisticalEngine';
+import DSMBConsole from './views/DSMBConsole';
+import RegulatoryTimeline from './views/RegulatoryTimeline';
+import EconomicsDashboard from './views/EconomicsDashboard';
 import ConfigModal from './components/ConfigModal';
 import LandingPage from './LandingPage';
-import { Users, BookOpen, Beaker, History, ShieldCheck } from 'lucide-react';
+import { Users, BookOpen, History, ShieldCheck } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { id: 'trial', label: 'Interactive Trial', icon: FlaskConical, desc: 'Control Room' },
-  { id: 'patients', label: 'Patient Cohort', icon: Users, desc: 'Subject Data' },
-  { id: 'evidence', label: 'Medical Evidence', icon: BookOpen, desc: 'PubMed / FDA' },
-  { id: 'composition', label: 'Drug Composition', icon: Beaker, desc: 'Ratios A/B/C' },
-  { id: 'benchmarks', label: 'Policy Benchmarks', icon: BarChart2, desc: 'Analytics' },
-  { id: 'agents', label: 'Agent Analysis', icon: ShieldCheck, desc: 'Logic & Reasoning' },
-  { id: 'worldnews', label: 'Global Med News', icon: Globe, desc: 'Live World Map' },
-  { id: 'hindsight', label: 'Hindsight Replay', icon: History, desc: 'Counterfactuals' },
-  { id: 'logs', label: 'System Logs', icon: Terminal, desc: 'Audit Trail' },
+  { id: 'trial',       label: 'Interactive Trial',  icon: FlaskConical, desc: 'Control Room',    group: 'Core' },
+  { id: 'patients',    label: 'Patient Cohort',      icon: Users,        desc: 'Subject Data',   group: 'Core' },
+  { id: 'composition', label: 'Drug Composition',    icon: Beaker,       desc: 'Ratios A/B/C',  group: 'Core' },
+  { id: 'pkpd',        label: 'PK/PD Dashboard',     icon: Activity,     desc: '2-Compartment', group: 'Science' },
+  { id: 'statistics',  label: 'Statistical Engine',  icon: BarChart2,    desc: 'Power & Tests', group: 'Science' },
+  { id: 'dsmb',        label: 'DSMB Console',         icon: Shield,       desc: 'Safety Board',  group: 'Science' },
+  { id: 'sites',       label: 'Site Operations',     icon: Building2,    desc: 'Multi-Site',    group: 'Operations' },
+  { id: 'regulatory',  label: 'Regulatory',           icon: FileCheck,    desc: 'IND→NDA',       group: 'Operations' },
+  { id: 'economics',   label: 'Pharmacoeconomics',   icon: DollarSign,   desc: 'ICER & QALY',   group: 'Operations' },
+  { id: 'evidence',    label: 'Medical Evidence',     icon: BookOpen,     desc: 'PubMed / FDA',  group: 'Intelligence' },
+  { id: 'agents',      label: 'Agent Analysis',       icon: ShieldCheck,  desc: 'CMO Briefing',  group: 'Intelligence' },
+  { id: 'worldnews',   label: 'Global Med News',      icon: Globe,        desc: 'Live World Map', group: 'Intelligence' },
+  { id: 'benchmarks',  label: 'Policy Benchmarks',   icon: TrendingUp,   desc: 'Analytics',     group: 'Intelligence' },
+  { id: 'hindsight',   label: 'Hindsight Replay',    icon: History,      desc: 'Counterfactuals', group: 'Dev' },
+  { id: 'logs',        label: 'System Logs',          icon: Terminal,     desc: 'Audit Trail',   group: 'Dev' },
 ];
 
 function Sidebar({ active, setActive, onConfig, connected, isAutoRunning, setIsAutoRunning }) {
@@ -36,9 +49,10 @@ function Sidebar({ active, setActive, onConfig, connected, isAutoRunning, setIsA
       width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column',
       background: 'rgba(10,12,20,0.7)', backdropFilter: 'blur(20px)',
       borderRight: '1px solid rgba(255,255,255,0.06)', padding: '24px 16px',
+      overflowY: 'auto',
     }}>
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 8px', marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 8px', marginBottom: 24 }}>
         <div style={{
           width: 34, height: 34, borderRadius: 10,
           background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
@@ -49,39 +63,51 @@ function Sidebar({ active, setActive, onConfig, connected, isAutoRunning, setIsA
         </div>
         <div>
           <div style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}>ClinicalSim</div>
-          <div style={{ fontSize: 10, color: '#475569', letterSpacing: 1 }}>v2.0 · RL Environment</div>
+          <div style={{ fontSize: 10, color: '#475569', letterSpacing: 1 }}>v3.0 · Comprehensive RL</div>
         </div>
       </div>
 
-      {/* Nav */}
+      {/* Nav — grouped */}
       <nav style={{ flex: 1 }}>
-        <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, color: '#334155', padding: '0 8px', marginBottom: 8 }}>Navigation</div>
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const isActive = active === item.id;
+        {['Core', 'Science', 'Operations', 'Intelligence', 'Dev'].map(group => {
+          const items = NAV_ITEMS.filter(i => i.group === group);
+          if (!items.length) return null;
           return (
-            <motion.button
-              key={item.id}
-              id={`nav-${item.id}`}
-              onClick={() => setActive(item.id)}
-              whileHover={{ x: 2 }}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-                borderRadius: 10, marginBottom: 4, border: 'none', cursor: 'pointer', textAlign: 'left',
-                background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
-                transition: 'background 0.2s',
-              }}
-            >
-              <Icon size={16} style={{ color: isActive ? '#3b82f6' : '#475569', flexShrink: 0 }} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? '#f8fafc' : '#64748b' }}>{item.label}</div>
-                <div style={{ fontSize: 10, color: '#334155' }}>{item.desc}</div>
-              </div>
-              {isActive && <ChevronRight size={12} style={{ marginLeft: 'auto', color: '#3b82f6' }} />}
-            </motion.button>
+            <div key={group} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1.5, color: '#334155', padding: '0 8px', marginBottom: 4 }}>{group}</div>
+              {items.map((item) => {
+                const Icon = item.icon;
+                const isActive = active === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActive(item.id)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 10px', borderRadius: 10, marginBottom: 2,
+                      background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                      borderLeft: isActive ? '3px solid #3b82f6' : '3px solid transparent',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <Icon size={14} style={{ color: isActive ? '#3b82f6' : '#475569', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: isActive ? 700 : 500, fontSize: 12, color: isActive ? '#e2e8f0' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: 9, color: '#334155' }}>{item.desc}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           );
         })}
       </nav>
+
+
+
 
       {/* Config button */}
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 16 }}>
@@ -135,7 +161,15 @@ const VIEW_MAP = {
   worldnews: WorldMedicalNews,
   hindsight: HindsightReplay,
   logs: SystemLogs,
+  // New comprehensive views
+  pkpd: PKPDDashboard,
+  sites: SiteOperations,
+  statistics: StatisticalEngine,
+  dsmb: DSMBConsole,
+  regulatory: RegulatoryTimeline,
+  economics: EconomicsDashboard,
 };
+
 
 import axios from 'axios';
 const API_BASE = 'http://localhost:8000';
