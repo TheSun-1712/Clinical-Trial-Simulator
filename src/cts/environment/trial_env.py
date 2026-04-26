@@ -286,7 +286,7 @@ class TrialEnv:
             terminated = True; info["termination_reason"] = "safety_breach"
         if next_state.fatal_reactions > 0:
             terminated = True; info["termination_reason"] = "fatal_reaction_detected"
-        if next_state.completed >= next_state.cohort_target:
+        if next_state.completed >= next_state.cohort_target and next_state.week >= stage.max_weeks:
             terminated = True; info["termination_reason"] = "success"
         if next_state.cmo_status == "stopped":
             terminated = True; info["termination_reason"] = "dsmb_stop"

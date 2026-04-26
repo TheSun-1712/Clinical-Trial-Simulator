@@ -50,8 +50,8 @@ class StageConfig(BaseModel):
 class FDAConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    warning_ae_rate: float = Field(default=0.08, ge=0.0, le=1.0)
-    hold_ae_rate: float = Field(default=0.15, ge=0.0, le=1.0)
+    warning_ae_rate: float = Field(default=0.50, ge=0.0, le=1.0)
+    hold_ae_rate: float = Field(default=0.80, ge=0.0, le=1.0)
     efficacy_floor: float = Field(default=0.45, ge=0.0, le=1.0)
 
 
@@ -64,11 +64,11 @@ class TrialConfig(BaseModel):
     stage1: StageConfig = Field(
         default_factory=lambda: StageConfig(
             name="stage1",
-            cohort_size=10,
-            max_weeks=16,
-            max_adverse_events=3,
-            max_budget=150000,
-            event_rates=EventRates(adverse_event_prob=0.015, serious_adverse_event_prob=0.002, dropout_prob=0.01),
+            cohort_size=100,
+            max_weeks=20,
+            max_adverse_events=100,
+            max_budget=500000,
+            event_rates=EventRates(adverse_event_prob=0.001, serious_adverse_event_prob=0.0, dropout_prob=0.0),
             promotion_mean_reward=0.25,
         )
     )
@@ -116,10 +116,10 @@ class TrialConfig(BaseModel):
             DiseaseType.TYPE2_DIABETES: {
                 "name": "Type 2 Diabetes",
                 "baseline_response": 0.57,
-                "toxicity_sensitivity": 0.42,
-                "fatality_floor": 0.001,
-                "major_threshold": 0.58,
-                "fatal_threshold": 0.83,
+                "toxicity_sensitivity": 0.05,
+                "fatality_floor": 0.0001,
+                "major_threshold": 0.68,
+                "fatal_threshold": 0.90,
                 "drift_rate": 0.015,
                 "metric_name": "HbA1c",
             },

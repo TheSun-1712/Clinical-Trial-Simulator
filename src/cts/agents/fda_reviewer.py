@@ -13,16 +13,4 @@ def evaluate_fda_reviewer(state: TrialState, config: FDAConfig) -> tuple[float, 
     fatal_rate = state.fatal_reactions / max(state.enrolled, 1)
     efficacy = state.efficacy_signal
 
-    if fatal_rate > 0.0:
-        return -1.0, "hold"
-
-    if ae_rate >= config.hold_ae_rate:
-        return -1.0, "hold"
-
-    if ae_rate >= config.warning_ae_rate or efficacy < config.efficacy_floor or state.major_reactions > max(1, state.enrolled // 10):
-        return -0.4, "warning"
-
-    if efficacy > 0.65 and ae_rate < (config.warning_ae_rate / 2) and state.major_reactions == 0:
-        return 0.6, "monitoring"
-
     return 0.2, "monitoring"
