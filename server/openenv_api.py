@@ -26,6 +26,7 @@ class OpenEnvStepRequest(BaseModel):
     session_id: str
     action_type: ActionType
     magnitude: float = 0.0
+    composition: dict = {}
 
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -297,7 +298,7 @@ def openenv_step(request: OpenEnvStepRequest) -> dict:
     if request.session_id not in sessions:
         return {"error": "unknown_session"}
 
-    action = Action(type=request.action_type, magnitude=request.magnitude)
+    action = Action(type=request.action_type, magnitude=request.magnitude, composition=request.composition)
     action_dict = {"type": action.type.value, "magnitude": action.magnitude}
     
     env = sessions[request.session_id]
