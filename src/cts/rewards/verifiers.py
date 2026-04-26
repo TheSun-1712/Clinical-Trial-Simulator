@@ -66,6 +66,12 @@ def risk_penalty(state: TrialState, action: Action, next_state: TrialState) -> f
 
 
 def opportunity_cost_penalty(state: TrialState, action: Action, next_state: TrialState) -> float:
+    # Lenient during the first 4 weeks of recruitment ramp-up
+    if next_state.week < 4:
+        if next_state.enrolled == 0:
+            return -0.2
+        return 0.1
+
     if next_state.enrolled == 0:
         return -1.0
 
@@ -77,12 +83,6 @@ def opportunity_cost_penalty(state: TrialState, action: Action, next_state: Tria
 
     if efficacy_gap > 0.1 and action.type in {ActionType.NOOP, ActionType.HOLD_ENROLLMENT}:
         return -min(1.0, 0.25 + efficacy_gap)
-
-    if efficacy_gap > 0.1 and action.type == ActionType.ADJUST_DOSE and action.magnitude <= 0:
-        return -min(1.0, 0.2 + efficacy_gap)
-
-    if safety_pressure > 0.0 and action.type == ActionType.RECRUIT:
-        return -min(1.0, 0.2 + safety_pressure)
 
     return max(-0.2, 0.2 - 0.3 * efficacy_gap)
 
@@ -99,6 +99,8 @@ def composite_efficiency_score(components: dict[str, float]) -> float:
 
 
 def combine_reward(weights: RewardWeights, components: dict[str, float]) -> float:
+    # Add a statistical precision bonus that scales with trial progress
+    # Reward = (Power achieved) * (Fraction of trial completed)
     total = (
         weights.efficacy * components["efficacy"]
         + weights.safety * components["safety"]
@@ -108,7 +110,7 @@ def combine_reward(weights: RewardWeights, components: dict[str, float]) -> floa
         + components["timeout"]
     )
     total += 0.08 * components.get("risk", 0.0)
-    total += 0.50 * components.get("opportunity_cost", 0.0)
+    total += 0.40 * components.get("opportunity_cost", 0.0)
     return max(-1.0, min(1.0, total))
 
 
