@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import uuid
 import random
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
@@ -43,6 +45,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve the built frontend
+dist_path = Path(__file__).parent.parent / "frontend" / "dist"
+if dist_path.exists():
+    app.mount("/", StaticFiles(directory=str(dist_path), html=True), name="static")
+else:
+    print(f"Warning: {dist_path} not found. UI will not be served.")
 from fastapi import HTTPException
 from cts.data.realworld_apis import fetch_clinical_trials, fetch_adverse_events, fetch_recent_literature
 from cts.data.serp_scanner import fetch_medical_news

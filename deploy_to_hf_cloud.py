@@ -1,45 +1,66 @@
+from __future__ import annotations
+
+import argparse
 import os
+
 from huggingface_hub import HfApi
 
-def deploy():
-    token = os.getenv("HF_TOKEN")
+
+def deploy(repo_id: str, private: bool, hardware: str = "") -> None:
+    token = os.getenv("HF_TOKEN", "").strip()
     if not token:
-        print("Error: HF_TOKEN environment variable not set.")
-        return
+        raise RuntimeError("HF_TOKEN environment variable is required")
 
     api = HfApi(token=token)
-    repo_id = "Helix2003/cts-cloud-training"
-    
-    print(f"1. Creating private Space: {repo_id}...")
+
+    visibility = "private" if private else "public"
+    print(f"1) Creating {visibility} Space: {repo_id}")
     api.create_repo(
         repo_id=repo_id,
         repo_type="space",
         space_sdk="docker",
-        private=True,
-        exist_ok=True
+        private=private,
+        exist_ok=True,
     )
-    
-    print("2. Uploading repository files (ignoring artifacts, .git, and .venv)...", flush=True)
-    # Upload everything except heavy/unnecessary folders
+
+    print("2) Uploading repository files to the Space")
     api.upload_folder(
         folder_path=".",
         repo_id=repo_id,
         repo_type="space",
-        ignore_patterns=["artifacts/*", ".git/*", "__pycache__/*", "*.pyc", ".venv*", ".pytest_cache/*", "deploy_to_hf_cloud.py"]
+        ignore_patterns=[
+            ".git/*",
+            "**/__pycache__/*",
+            "*.pyc",
+            ".venv*",
+            "**/node_modules/*",
+            "**/dist/*",
+            ".pytest_cache/*",
+            "artifacts/trl_*/*",
+            "artifacts/api_cache/*",
+        ],
     )
-    
-    print("3. Requesting A10G Small GPU upgrade (This uses your HF credits!)...")
-    try:
-        api.request_space_hardware(repo_id=repo_id, hardware="a10g-small")
-        print("Hardware upgrade requested successfully!")
-    except Exception as e:
-        print(f"Warning: Could not automatically upgrade hardware: {e}")
-        print("You may need to manually select the A10G GPU in the Space settings at:")
-        print(f"https://huggingface.co/spaces/{repo_id}/settings")
 
-    print("\n✅ Deployment Complete!")
-    print(f"Your training job is now building on the cloud: https://huggingface.co/spaces/{repo_id}")
-    print("Once it finishes training, it will automatically upload the final model to Helix2003/cts-simulation-v1.")
+    if hardware:
+        print(f"3) Requesting hardware upgrade: {hardware}")
+        try:
+            api.request_space_hardware(repo_id=repo_id, hardware=hardware)
+            print("Hardware upgrade requested successfully")
+        except Exception as exc:
+            print(f"Warning: could not request hardware automatically: {exc}")
+
+    print("\nDeployment complete")
+    print(f"Space URL: https://huggingface.co/spaces/{repo_id}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Deploy this repository to a Hugging Face Space")
+    parser.add_argument("--repo-id", required=True, help="Example: your-hf-username/clinical-trial-simulator-v2")
+    parser.add_argument("--private", action="store_true", help="Create private Space (default: public)")
+    parser.add_argument("--hardware", default="", help="Optional hardware tier, e.g. cpu-basic, t4-small, a10g-small")
+    args = parser.parse_args()
+    deploy(repo_id=args.repo_id.strip(), private=args.private, hardware=args.hardware.strip())
+
 
 if __name__ == "__main__":
-    deploy()
+    main()

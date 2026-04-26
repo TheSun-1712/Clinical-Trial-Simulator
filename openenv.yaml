@@ -1,0 +1,99 @@
+name: clinical-trial-simulator
+version: 2.0.0
+description: >
+  A patient-level, multi-agent clinical trial RL environment where an LLM must
+  make weekly trial management decisions across pharmacokinetics, safety monitoring,
+  regulatory affairs, supply chain, and health economics — all simultaneously.
+  The only domain where a wrong decision costs $800 million and 5 years.
+
+author: TheSun-1712
+license: MIT
+tags:
+  - clinical-trials
+  - pharmacology
+  - pkpd
+  - multi-agent
+  - healthcare
+  - drug-development
+  - dsmb
+  - regulatory
+
+environment:
+  type: openenv
+  observation_space:
+    type: dict
+    description: >
+      Partial observation of a running clinical trial including PK/PD state,
+      patient cohort status, FDA sentiment, DSMB decisions, drug supply,
+      and regulatory milestone progress.
+  action_space:
+    type: discrete_parameterized
+    actions:
+      - name: recruit
+        magnitude: number_of_patients_to_recruit
+      - name: adjust_dose
+        magnitude: delta_dose_level  # range -0.5 to +0.5
+      - name: update_composition
+        composition: {a: float, b: float, c: float}  # sum must equal 1
+      - name: hold_enrollment
+        magnitude: 0
+      - name: file_interim_report
+        magnitude: 0
+      - name: implement_amendment
+        magnitude: 0
+      - name: request_dsmb_review
+        magnitude: 0
+      - name: order_drug_supply
+        magnitude: units_to_order
+      - name: request_fda_meeting
+        magnitude: 0
+      - name: implement_adaptive_randomization
+        magnitude: 0
+      - name: noop
+        magnitude: 0
+
+reward:
+  type: composite_rubric
+  components:
+    - name: safety
+      weight: 0.25
+      description: Penalise serious adverse events, reward timely safety holds
+    - name: efficacy
+      weight: 0.25
+      description: Reward biomarker improvement vs control arm
+    - name: regulatory
+      weight: 0.20
+      description: Reward milestone completion, penalise overdue SAEs
+    - name: efficiency
+      weight: 0.15
+      description: Budget utilisation — reward completing trial under budget
+    - name: supply_chain
+      weight: 0.10
+      description: Penalise stockouts, reward supply adequacy
+    - name: power
+      weight: 0.05
+      description: Reward maintaining statistical power above 80%
+
+episodes:
+  max_weeks: 52
+  min_weeks: 8
+  diseases:
+    - type2_diabetes
+    - hypertension
+    - nsclc
+
+api:
+  base_path: /
+  endpoints:
+    reset: POST /openenv/reset
+    step: POST /openenv/step
+    metadata: GET /openenv/metadata
+    state: GET /simulation/state/{session_id}
+    pkpd: GET /simulation/pkpd/{session_id}
+    sites: GET /simulation/sites/{session_id}
+    statistics: GET /simulation/statistics/{session_id}
+    dsmb: GET /simulation/dsmb/{session_id}
+    supply: GET /simulation/supply/{session_id}
+    milestones: GET /simulation/milestones/{session_id}
+    agents: GET /simulation/agents/{session_id}
+    economics: GET /simulation/economics/{session_id}
